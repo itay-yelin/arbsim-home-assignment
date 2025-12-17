@@ -15,27 +15,7 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="framework.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="MarketData.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="CsvReader.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="StreamMerger.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="PnlTracker.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-  </ItemGroup>
-  <ItemGroup>
-    <ClCompile Include="CsvReader.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="StreamMerger.cpp">
+    <ClCompile Include="BasicTests.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>

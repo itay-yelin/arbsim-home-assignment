@@ -7,6 +7,17 @@
 #include "MarketData.h"
 
 namespace ArbSim {
+    enum CsvColumn
+    {
+        SendingTime = 0,
+        InstrumentId,
+        EventTypeId,
+        BidSize,
+        Bid,
+        Ask,
+        AskSize,
+        ColumnCount
+    };
 
     class CsvReader {
     public:

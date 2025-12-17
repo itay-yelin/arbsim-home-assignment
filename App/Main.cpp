@@ -9,8 +9,10 @@ int main() {
     ArbSim::StreamMerger merger(readerA, readerB);
 
     ArbSim::MarketEvent ev{};
-    for (int i = 0; i < 10; i++) {
-        if (!merger.ReadNext(ev)) {
+    for (int i = 0; i < 10; i++) 
+    {
+        if (!merger.ReadNext(ev))
+        {
             break;
         }
 

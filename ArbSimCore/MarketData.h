@@ -4,14 +4,17 @@
 #include <string>
 #include <cstdint>
 
-namespace ArbSim {
-    enum class InstrumentId {
+namespace ArbSim 
+{
+    enum class InstrumentId 
+    {
         FutureA,
         FutureB,
         Unknown
     };
 
-    struct MarketEvent {
+    struct MarketEvent 
+    {
         std::int64_t sendingTime;
         InstrumentId instrumentId;
         int eventTypeId;
@@ -21,15 +24,33 @@ namespace ArbSim {
         int askSize;
     };
 
+    enum class Side 
+    {
+        Buy,
+        Sell
+    };
+
+
     inline std::string InstrumentToString(InstrumentId id) {
-        switch (id) {
-        case InstrumentId::FutureA: return "FutureA";
-        case InstrumentId::FutureB: return "FutureB";
-        default: return "Unknown";
+        switch (id) 
+        {
+            case InstrumentId::FutureA:
+            {
+                return "FutureA";
+            }
+            case InstrumentId::FutureB:
+            {
+                return "FutureB";
+            }
+            default:
+            {
+                return "Unknown";
+            }
         }
     }
 
-    inline InstrumentId StringToInstrument(const std::string& s) {
+    inline InstrumentId StringToInstrument(const std::string& s)
+    {
         if (s == "FutureA") return InstrumentId::FutureA;
         if (s == "FutureB") return InstrumentId::FutureB;
         return InstrumentId::Unknown;
