@@ -1,0 +1,24 @@
+# Visual Studio
+.vs/
+*.user
+*.suo
+*.VC.db
+*.VC.opendb
+
+# Build outputs
+x64/
+Debug/
+Release/
+**/Debug/
+**/Release/
+
+# Binaries
+*.exe
+*.dll
+*.lib
+*.obj
+*.pdb
+*.ilk
+
+# CSV data (local)
+*.csv

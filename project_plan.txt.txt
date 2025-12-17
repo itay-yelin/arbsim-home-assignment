@@ -1,0 +1,57 @@
+Arbitrage test
+1. You are given market data of 2 instruments – A and B.
+a. They both are futures of the same index.
+b. Therefor they are traded in the same price range.
+c. Future A is much more traded than future B.
+d. Future A legal order prices are multipliers of 0.5 (10890, 10890.5, 10891, …)
+e. Future B legal order prices are multipliers of 1 (10890, 10891, 10892, …)
+2. You can buy a future at the ask price, and sell it at the bid price.
+3. We define mid price of a future: (ask + bid) / 2
+4. We define arbitrage of X, if we can buy future A at price P, and sell future B at price
+P+X, or vice versa.
+5. We define PNL (=profit and loss):
+a. If we do not have an open position, meaning total buy lots equals total sell
+lots (this is called delta zero, or delta neutral) then the pnl is ∑sell trades -
+∑buy trades. In this case the pnl is fixed and does not change. (realized pnl)
+b. If we do have an open position, meaning we are exposed to the market,
+then the pnl changes every time the market moves. Then we calculated the
+unrealized pnl by assuming we can close the open position at the market
+midpoint (mid price) so
+i. For buy trade : Mid price of the future - price of buy trade
+ii. For sell trade : price of sell trade - Mid price of the future
+c. The total pnl is the sum of realized and unrealized pnl.
+6. Our strategy would be:
+a. Identify an arbitrage of X (0 is also a valid value for X)
+b. Act only upon future B (not a full arbitrage trade) – buy or sell according to
+arbitrage direction 1 lot at each time
+c. Do it only until a maximum exposure of Y lots. For example if Y=2 and you
+have already bought 2 lots, you cannot buy more lots, but you are allowed
+to sell 4 lots.
+d. Stop loss of Z – if PNL drops below Z do not trade any more, and close all
+positions (if we bought 2 lots – sell them at mid price)
+
+7. You are required to perform a simulation where you run the strategy over a single
+day, given the parameters X, Y, Z.
+8. The 2 different instruments are broadcasted over 2 different IP channels.
+9. You are simulating the real system, just that instead of receiving the data over the
+network, you are reading the data from 2 files.
+10. The first value of each line is the timestamp that the exchange has sent the market
+data message. You need to sync the data with this timestamp.
+11. You need to report at the end of the simulation:
+a. How many lots you were trading (buy amount + sell amount)
+b. What was your total PNL of the trades at the end of the day
+c. What were the worst and the best PNL during the day.
+d. What was your maximum exposure in lots.
+e. Log each trade you make with the timestamp of the event
+
+Format of csv files:
+sendingTime,instrumentId,eventTypeId,bidSize,bid,ask,askSize
+sendingTime – the timestamp when message was sent from exchange
+instrumentId – FutureA/B
+eventType – either book change or trade message – you can ignore this field
+bidSize – how many lots in the first BUY order
+bid – what is the bid price (you are selling at this price)
+ask – what is the ask price (you are buying at this price)
+askSize – how many lots in the first SELL order
+
+you can download the data from here:
