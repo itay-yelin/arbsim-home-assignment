@@ -24,8 +24,8 @@ namespace ArbSim
         explicit Strategy(const StrategyParams& params);
 
         StrategyAction Decide(
-            double midA,
-            double midB,
+            double sellEdge,   // B_bid - A_ask
+            double buyEdge,    // A_bid - B_ask
             int positionB,
             double currentPnl
         ) const;

@@ -3,6 +3,9 @@
 #include <stdexcept>
 #include <string>
 #include <cmath>
+#include <sstream>
+#include <fstream>
+#include <cstdio>   // std::remove
 
 #include <windows.h>
 
@@ -11,25 +14,33 @@
 #include "MarketData.h"
 #include "PnlTracker.h"
 #include "Strategy.h"
-#include <sstream>
 #include "SimulationEngine.h"
-#include <fstream>
-#include <cstdio>   // std::remove
 
 using namespace ArbSim;
 
+//================= Helpers =================//
 
-static MarketEvent MakeQuote(long long t, InstrumentId inst, double bid, double ask)
+static void PrintLine(const std::string& s)
 {
-    MarketEvent e{};
-    e.sendingTime = t;
-    e.instrumentId = inst;
-    e.eventTypeId = 0;
-    e.bidSize = 100;
-    e.bid = bid;
-    e.ask = ask;
-    e.askSize = 100;
-    return e;
+    std::cout << s << std::endl;
+    OutputDebugStringA((s + "\n").c_str());
+}
+
+static void PrintOk(const std::string& s)
+{
+    PrintLine(std::string("[OK] ") + s);
+}
+
+static void Require(bool condition, const std::string& message)
+{
+    if (!condition)
+        throw std::runtime_error(message);
+}
+
+static void RequireNear(double actual, double expected, double eps, const std::string& message)
+{
+    if (std::abs(actual - expected) > eps)
+        throw std::runtime_error(message + " actual=" + std::to_string(actual) + " expected=" + std::to_string(expected));
 }
 
 static int CountSubstr(const std::string& s, const std::string& sub)
@@ -46,33 +57,18 @@ static int CountSubstr(const std::string& s, const std::string& sub)
     return count;
 }
 
-static void PrintLine(const std::string& s)
+static MarketEvent MakeQuote(long long t, InstrumentId inst, double bid, double ask)
 {
-    std::cout << s << std::endl;
-    OutputDebugStringA((s + "\n").c_str());
+    MarketEvent e{};
+    e.sendingTime = t;
+    e.instrumentId = inst;
+    e.eventTypeId = 0;
+    e.bidSize = 100;
+    e.bid = bid;
+    e.ask = ask;
+    e.askSize = 100;
+    return e;
 }
-
-static void PrintOk(const std::string& s)
-{
-    PrintLine(std::string("[OK] ") + s);
-}
-
-static void Require(bool condition, const std::string& message)
-{
-    if (!condition)
-    {
-        throw std::runtime_error(message);
-    }
-}
-
-static void RequireNear(double actual, double expected, double eps, const std::string& message)
-{
-    if (std::abs(actual - expected) > eps)
-    {
-        throw std::runtime_error(message + " actual=" + std::to_string(actual) + " expected=" + std::to_string(expected));
-    }
-}
-
 
 static void WriteTextFile(const std::string& path, const std::string& content)
 {
@@ -81,223 +77,211 @@ static void WriteTextFile(const std::string& path, const std::string& content)
     f << content;
     Require(f.good(), "Failed to write temp file: " + path);
 }
-//================= Test Cases =================//
+
+//================= SimulationEngine tests =================//
+
 void TestSimulationEngine_NoTradeUntilBothQuotes()
 {
-    StrategyParams params;
-    params.MinArbitrageEdge = 1.0;
-    params.MaxAbsExposureLots = 2;
-    params.StopLossPnl = -50.0;
+    StrategyParams p{};
+    p.MinArbitrageEdge = 1.0;
+    p.MaxAbsExposureLots = 2;
+    p.StopLossPnl = -50.0;
 
     std::ostringstream log;
-    SimulationEngine eng(Strategy(params), PnlTracker(), log);
+    SimulationEngine eng(Strategy(p), PnlTracker(), log);
 
     eng.OnEvent(MakeQuote(100, InstrumentId::FutureA, 99.0, 101.0));
     Require(log.str().empty(), "SimEngine: traded before having both quotes");
 
     eng.OnEvent(MakeQuote(101, InstrumentId::FutureB, 99.0, 101.0));
     Require(CountSubstr(log.str(), ",BUY,") == 0 && CountSubstr(log.str(), ",SELL,") == 0,
-        "SimEngine: unexpected trade when edge is 0");
+        "SimEngine: unexpected trade when no executable edge exists");
 
     PrintOk("SimulationEngine no trade until both quotes");
 }
 
-void TestSimulationEngine_SellB_WhenBExpensive()
+void TestSimulationEngine_SellB_WhenExecutableSellEdge()
 {
-    StrategyParams params;
-    params.MinArbitrageEdge = 1.0;
-    params.MaxAbsExposureLots = 2;
-    params.StopLossPnl = -50.0;
+    StrategyParams p{};
+    p.MinArbitrageEdge = 1.0;
+    p.MaxAbsExposureLots = 2;
+    p.StopLossPnl = -50.0;
 
     std::ostringstream log;
-    SimulationEngine eng(Strategy(params), PnlTracker(), log);
+    SimulationEngine eng(Strategy(p), PnlTracker(), log);
 
-    // midA = 100.0
-    eng.OnEvent(MakeQuote(100, InstrumentId::FutureA, 99.0, 101.0));
-    // midB = 101.0 -> edge = +1.0 -> SellB
-    eng.OnEvent(MakeQuote(101, InstrumentId::FutureB, 100.0, 102.0));
+    // sellEdge = B_bid - A_ask
+    // A_ask = 100, B_bid = 101 => sellEdge = 1 => SellB
+    eng.OnEvent(MakeQuote(100, InstrumentId::FutureA, 99.0, 100.0));
+    eng.OnEvent(MakeQuote(101, InstrumentId::FutureB, 101.0, 102.0));
 
     Require(CountSubstr(log.str(), ",SELL,FutureB,1,") == 1, "SimEngine: expected one SELL");
-    PrintOk("SimulationEngine sells when B expensive");
+    PrintOk("SimulationEngine SellB on executable sellEdge");
 }
 
-void TestSimulationEngine_BuyB_WhenBCheap()
+void TestSimulationEngine_BuyB_WhenExecutableBuyEdge()
 {
-    StrategyParams params;
-    params.MinArbitrageEdge = 1.0;
-    params.MaxAbsExposureLots = 2;
-    params.StopLossPnl = -50.0;
+    StrategyParams p{};
+    p.MinArbitrageEdge = 1.0;
+    p.MaxAbsExposureLots = 2;
+    p.StopLossPnl = -50.0;
 
     std::ostringstream log;
-    SimulationEngine eng(Strategy(params), PnlTracker(), log);
+    SimulationEngine eng(Strategy(p), PnlTracker(), log);
 
-    // midA = 101.0
-    eng.OnEvent(MakeQuote(100, InstrumentId::FutureA, 100.0, 102.0));
-    // midB = 100.0 -> edge = -1.0 -> BuyB
-    eng.OnEvent(MakeQuote(101, InstrumentId::FutureB, 99.0, 101.0));
+    // buyEdge = A_bid - B_ask
+    // A_bid = 101, B_ask = 100 => buyEdge = 1 => BuyB
+    eng.OnEvent(MakeQuote(100, InstrumentId::FutureA, 101.0, 102.0));
+    eng.OnEvent(MakeQuote(101, InstrumentId::FutureB, 99.0, 100.0));
 
     Require(CountSubstr(log.str(), ",BUY,FutureB,1,") == 1, "SimEngine: expected one BUY");
-    PrintOk("SimulationEngine buys when B cheap");
+    PrintOk("SimulationEngine BuyB on executable buyEdge");
 }
 
-void TestSimulationEngine_StopLossFlattensAndStops()
+void TestSimulationEngine_StopLoss_ClosesAsTradeAndStops()
 {
-    StrategyParams params;
-    params.MinArbitrageEdge = 1.0;
-    params.MaxAbsExposureLots = 10;
-    params.StopLossPnl = -0.5; // very tight
+    StrategyParams p{};
+    p.MinArbitrageEdge = 1.0;
+    p.MaxAbsExposureLots = 10;
+    p.StopLossPnl = -0.5;
 
     std::ostringstream log;
-    SimulationEngine eng(Strategy(params), PnlTracker(), log);
+    SimulationEngine eng(Strategy(p), PnlTracker(), log);
 
-    // Get both quotes with edge negative -> BuyB at B ask=101.0, midB=100.0
-    eng.OnEvent(MakeQuote(100, InstrumentId::FutureA, 100.0, 102.0)); // midA=101
-    eng.OnEvent(MakeQuote(101, InstrumentId::FutureB, 99.0, 101.0));  // midB=100 => BUY at 101
+    // Force BuyB:
+    // A_bid - B_ask >= 1
+    // A_bid = 101, B_ask = 100 => buyEdge=1 => BuyB at 100
+    eng.OnEvent(MakeQuote(100, InstrumentId::FutureA, 101.0, 102.0));
+    eng.OnEvent(MakeQuote(101, InstrumentId::FutureB, 99.0, 100.0));
 
-    // Now crash midB to force pnl below -0.5
-    eng.OnEvent(MakeQuote(102, InstrumentId::FutureB, 98.0, 99.0));   // midB=98.5 => pnl ~ -2.5 => FLATTEN
+    // Drop midB: bid=98 ask=99 => mid=98.5
+    // PnL approx = cash(-100) + pos(1)*98.5 = -1.5 < -0.5 => stop and close at mid
+    eng.OnEvent(MakeQuote(102, InstrumentId::FutureB, 98.0, 99.0));
 
-    Require(CountSubstr(log.str(), ",FLATTEN,FutureB,0,") == 1, "SimEngine: expected FLATTEN on stop loss");
+    const std::string out = log.str();
+    Require(CountSubstr(out, "STOP_LOSS_CLOSE") == 1, "SimEngine: expected STOP_LOSS_CLOSE tag");
+    Require(CountSubstr(out, ",BUY,FutureB,") + CountSubstr(out, ",SELL,FutureB,") >= 2,
+        "SimEngine: expected at least open trade and stop-loss close trade");
 
     const std::string before = log.str();
 
-    // Try to trigger more trading after stop
-    eng.OnEvent(MakeQuote(103, InstrumentId::FutureA, 90.0, 92.0));
-    eng.OnEvent(MakeQuote(104, InstrumentId::FutureB, 110.0, 112.0));
+    // After stop, should not trade anymore
+    eng.OnEvent(MakeQuote(103, InstrumentId::FutureA, 50.0, 51.0));
+    eng.OnEvent(MakeQuote(104, InstrumentId::FutureB, 200.0, 201.0));
 
-    Require(log.str() == before, "SimEngine: expected no further logs after stop trading");
-    PrintOk("SimulationEngine stop loss flattens and stops");
+    Require(log.str() == before, "SimEngine: expected no further logs after stop");
+    PrintOk("SimulationEngine stop loss closes as trade and stops");
 }
 
-void TestSimulationEngine_EndOfDayFlattensWhenOpen()
+void TestSimulationEngine_EndOfDayClose_Tagged()
 {
-    StrategyParams params;
-    params.MinArbitrageEdge = 1.0;
-    params.MaxAbsExposureLots = 10;
-    params.StopLossPnl = -50.0;
+    StrategyParams p{};
+    p.MinArbitrageEdge = 1.0;
+    p.MaxAbsExposureLots = 10;
+    p.StopLossPnl = -50.0;
 
     std::ostringstream log;
-    SimulationEngine eng(Strategy(params), PnlTracker(), log);
+    SimulationEngine eng(Strategy(p), PnlTracker(), log);
 
-    // Create one BUY so position != 0
-    eng.OnEvent(MakeQuote(100, InstrumentId::FutureA, 100.0, 102.0)); // midA=101
-    eng.OnEvent(MakeQuote(101, InstrumentId::FutureB, 99.0, 101.0));  // midB=100 => BUY
+    // Open position: BuyB
+    eng.OnEvent(MakeQuote(100, InstrumentId::FutureA, 101.0, 102.0));
+    eng.OnEvent(MakeQuote(101, InstrumentId::FutureB, 99.0, 100.0));
 
     eng.OnEndOfDay(200);
 
-    Require(CountSubstr(log.str(), ",FLATTEN_EOD,FutureB,0,") == 1, "SimEngine: expected FLATTEN_EOD");
-    PrintOk("SimulationEngine end-of-day flatten");
+    Require(CountSubstr(log.str(), "EOD_CLOSE") == 1, "SimEngine: expected EOD_CLOSE tag");
+    PrintOk("SimulationEngine end-of-day close tagged");
 }
 
-void TestStrategyReturnsNoneWhenEdgeSmall()
+//================= Strategy tests (new Decide signature) =================//
+
+void TestStrategyReturnsNone_WhenEdgesSmall()
 {
-    StrategyParams params;
-    params.MinArbitrageEdge = 2.0;
-    params.MaxAbsExposureLots = 2;
-    params.StopLossPnl = -50.0;
+    StrategyParams p{};
+    p.MinArbitrageEdge = 2.0;
+    p.MaxAbsExposureLots = 2;
+    p.StopLossPnl = -50.0;
 
-    Strategy strategy(params);
+    Strategy s(p);
 
-    StrategyAction action = strategy.Decide(
-        100.0,
-        101.0,
-        0,
-        0.0
-    );
-
-    Require(action == StrategyAction::None, "Strategy: expected None when edge is small");
-    PrintOk("Strategy returns None when edge is small");
+    StrategyAction a = s.Decide(/*sellEdge*/1.999, /*buyEdge*/1.999, /*pos*/0, /*pnl*/0.0);
+    Require(a == StrategyAction::None, "Strategy: expected None when edges are below threshold");
+    PrintOk("Strategy returns None when edges small");
 }
 
-void TestStrategySellsWhenBExpensive()
+void TestStrategySells_WhenSellEdgeBig()
 {
-    StrategyParams params;
-    params.MinArbitrageEdge = 2.0;
-    params.MaxAbsExposureLots = 2;
-    params.StopLossPnl = -50.0;
+    StrategyParams p{};
+    p.MinArbitrageEdge = 2.0;
+    p.MaxAbsExposureLots = 2;
+    p.StopLossPnl = -50.0;
 
-    Strategy strategy(params);
+    Strategy s(p);
 
-    StrategyAction action = strategy.Decide(
-        100.0,
-        103.0,
-        0,
-        0.0
-    );
-
-    Require(action == StrategyAction::SellB, "Strategy: expected SellB when B is expensive vs A");
-    PrintOk("Strategy sells when B is expensive vs A");
+    StrategyAction a = s.Decide(/*sellEdge*/2.0, /*buyEdge*/0.0, /*pos*/0, /*pnl*/0.0);
+    Require(a == StrategyAction::SellB, "Strategy: expected SellB when sellEdge big");
+    PrintOk("Strategy sells when sellEdge big");
 }
 
-void TestStrategyBuysWhenBCheap()
+void TestStrategyBuys_WhenBuyEdgeBig()
 {
-    StrategyParams params;
-    params.MinArbitrageEdge = 2.0;
-    params.MaxAbsExposureLots = 2;
-    params.StopLossPnl = -50.0;
+    StrategyParams p{};
+    p.MinArbitrageEdge = 2.0;
+    p.MaxAbsExposureLots = 2;
+    p.StopLossPnl = -50.0;
 
-    Strategy strategy(params);
+    Strategy s(p);
 
-    StrategyAction action = strategy.Decide(
-        100.0,
-        97.0,
-        0,
-        0.0
-    );
-
-    Require(action == StrategyAction::BuyB, "Strategy: expected BuyB when B is cheap vs A");
-    PrintOk("Strategy buys when B is cheap vs A");
+    StrategyAction a = s.Decide(/*sellEdge*/0.0, /*buyEdge*/2.0, /*pos*/0, /*pnl*/0.0);
+    Require(a == StrategyAction::BuyB, "Strategy: expected BuyB when buyEdge big");
+    PrintOk("Strategy buys when buyEdge big");
 }
 
-void TestStrategyRespectsExposureLimit()
+void TestStrategyExposure_PostTrade_AllowsSellFromPlusY()
 {
-    StrategyParams params;
-    params.MinArbitrageEdge = 1.0;
-    params.MaxAbsExposureLots = 2;
-    params.StopLossPnl = -50.0;
+    StrategyParams p{};
+    p.MinArbitrageEdge = 1.0;
+    p.MaxAbsExposureLots = 2;
+    p.StopLossPnl = -50.0;
 
-    Strategy strategy(params);
+    Strategy s(p);
 
-    StrategyAction action1 = strategy.Decide(
-        100.0,
-        102.0,
-        2,
-        0.0
-    );
+    // pos=+2, SellB would go to +1 which is allowed
+    StrategyAction a = s.Decide(/*sellEdge*/1.0, /*buyEdge*/0.0, /*pos*/+2, /*pnl*/0.0);
+    Require(a == StrategyAction::SellB, "Strategy: expected SellB allowed from +Y");
+    PrintOk("Strategy allows SellB from +Y");
+}
 
-    Require(action1 == StrategyAction::None, "Strategy: expected None when exposure limit reached (long)");
+void TestStrategyExposure_PostTrade_BlocksBuyAtPlusY()
+{
+    StrategyParams p{};
+    p.MinArbitrageEdge = 1.0;
+    p.MaxAbsExposureLots = 2;
+    p.StopLossPnl = -50.0;
 
-    StrategyAction action2 = strategy.Decide(
-        100.0,
-        98.0,
-        -2,
-        0.0
-    );
+    Strategy s(p);
 
-    Require(action2 == StrategyAction::None, "Strategy: expected None when exposure limit reached (short)");
-
-    PrintOk("Strategy respects exposure limit");
+    // pos=+2, BuyB would go to +3 which is blocked
+    StrategyAction a = s.Decide(/*sellEdge*/0.0, /*buyEdge*/1.0, /*pos*/+2, /*pnl*/0.0);
+    Require(a == StrategyAction::None, "Strategy: expected BuyB blocked at +Y");
+    PrintOk("Strategy blocks BuyB at +Y");
 }
 
 void TestStrategyStopsOnStopLoss()
 {
-    StrategyParams params;
-    params.MinArbitrageEdge = 1.0;
-    params.MaxAbsExposureLots = 2;
-    params.StopLossPnl = -10.0;
+    StrategyParams p{};
+    p.MinArbitrageEdge = 1.0;
+    p.MaxAbsExposureLots = 2;
+    p.StopLossPnl = -10.0;
 
-    Strategy strategy(params);
+    Strategy s(p);
 
-    StrategyAction action = strategy.Decide(
-        100.0,
-        120.0,
-        0,
-        -11.0
-    );
-
-    Require(action == StrategyAction::None, "Strategy: expected None when stop loss breached");
+    StrategyAction a = s.Decide(/*sellEdge*/100.0, /*buyEdge*/100.0, /*pos*/0, /*pnl*/-11.0);
+    Require(a == StrategyAction::None, "Strategy: expected None when stop loss breached");
     PrintOk("Strategy returns None when stop loss breached");
 }
+
+//================= CsvReader tests =================//
 
 void TestCsvReaderReadsFirstLine()
 {
@@ -322,21 +306,19 @@ void TestCsvReaderEof()
     int count = 0;
 
     while (reader.ReadNextEvent(ev))
-    {
         count++;
-    }
 
     Require(count > 0, "CsvReader: expected at least one row");
     PrintOk("CsvReader EOF handling");
 }
+
+//================= StreamMerger tests =================//
 
 void TestStreamMergerTieBreak_AFirstOnEqualTimestamp()
 {
     const std::string fileA = "Data/_tmp_A_equal_ts.csv";
     const std::string fileB = "Data/_tmp_B_equal_ts.csv";
 
-    // Same sendingTime in both files: 1000
-    // StreamMerger should output FutureA first when equal timestamp.
     const std::string a =
         "1000,FutureA,0,1,10,11,1\n"
         "1001,FutureA,0,1,10,11,1\n";
@@ -354,10 +336,7 @@ void TestStreamMergerTieBreak_AFirstOnEqualTimestamp()
         CsvReader readerB(fileB);
         StreamMerger merger(readerA, readerB);
 
-        MarketEvent e1{};
-        MarketEvent e2{};
-        MarketEvent e3{};
-        MarketEvent e4{};
+        MarketEvent e1{}, e2{}, e3{}, e4{};
 
         Require(merger.ReadNext(e1), "TieBreak: expected first event");
         Require(merger.ReadNext(e2), "TieBreak: expected second event");
@@ -367,15 +346,11 @@ void TestStreamMergerTieBreak_AFirstOnEqualTimestamp()
         Require(e1.sendingTime == 1000, "TieBreak: e1 time mismatch");
         Require(e2.sendingTime == 1000, "TieBreak: e2 time mismatch");
 
-        Require(e1.instrumentId == InstrumentId::FutureA,
-            "TieBreak: expected FutureA first on equal timestamp");
-        Require(e2.instrumentId == InstrumentId::FutureB,
-            "TieBreak: expected FutureB second on equal timestamp");
+        Require(e1.instrumentId == InstrumentId::FutureA, "TieBreak: expected FutureA first on equal timestamp");
+        Require(e2.instrumentId == InstrumentId::FutureB, "TieBreak: expected FutureB second on equal timestamp");
 
-        Require(e3.sendingTime == 1001 && e3.instrumentId == InstrumentId::FutureA,
-            "TieBreak: expected A@1001 third");
-        Require(e4.sendingTime == 1002 && e4.instrumentId == InstrumentId::FutureB,
-            "TieBreak: expected B@1002 fourth");
+        Require(e3.sendingTime == 1001 && e3.instrumentId == InstrumentId::FutureA, "TieBreak: expected A@1001 third");
+        Require(e4.sendingTime == 1002 && e4.instrumentId == InstrumentId::FutureB, "TieBreak: expected B@1002 fourth");
 
         PrintOk("StreamMerger tie-break: A first on equal timestamp");
     }
@@ -397,21 +372,16 @@ void TestStreamMergerOrdering()
 
     StreamMerger merger(readerA, readerB);
 
-    MarketEvent prev{};
-    MarketEvent curr{};
+    MarketEvent prev{}, curr{};
     bool hasPrev = false;
 
     for (int i = 0; i < 2000; i++)
     {
         if (!merger.ReadNext(curr))
-        {
             break;
-        }
 
         if (hasPrev)
-        {
             Require(curr.sendingTime >= prev.sendingTime, "StreamMerger: events not in chronological order");
-        }
 
         prev = curr;
         hasPrev = true;
@@ -434,9 +404,7 @@ void TestStreamMergerContainsFutureB()
     for (int i = 0; i < 2000; i++)
     {
         if (!merger.ReadNext(ev))
-        {
             break;
-        }
 
         if (ev.instrumentId == InstrumentId::FutureB)
         {
@@ -448,6 +416,8 @@ void TestStreamMergerContainsFutureB()
     Require(sawB, "StreamMerger: expected to see FutureB event");
     PrintOk("StreamMerger contains FutureB events");
 }
+
+//================= PnlTracker tests =================//
 
 void TestPnlTrackerInitialState()
 {
@@ -515,38 +485,41 @@ void TestPnlTrackerMaxExposure()
     PrintOk("PnlTracker max exposure");
 }
 
+//================= Test Runner =================//
+
 int main()
 {
     try
     {
+        // CsvReader tests
         TestCsvReaderReadsFirstLine();
         TestCsvReaderEof();
+
+        // StreamMerger tests
         TestStreamMergerOrdering();
         TestStreamMergerContainsFutureB();
         TestStreamMergerTieBreak_AFirstOnEqualTimestamp();
 
-
-		// PnlTracker tests
+        // PnlTracker tests
         TestPnlTrackerInitialState();
         TestPnlTrackerBuyAndMarkToMarket();
         TestPnlTrackerRoundTrip();
         TestPnlTrackerMaxExposure();
 
-		// Strategy tests
-        TestStrategyReturnsNoneWhenEdgeSmall();
-        TestStrategySellsWhenBExpensive();
-        TestStrategyBuysWhenBCheap();
-        TestStrategyRespectsExposureLimit();
+        // Strategy tests
+        TestStrategyReturnsNone_WhenEdgesSmall();
+        TestStrategySells_WhenSellEdgeBig();
+        TestStrategyBuys_WhenBuyEdgeBig();
+        TestStrategyExposure_PostTrade_AllowsSellFromPlusY();
+        TestStrategyExposure_PostTrade_BlocksBuyAtPlusY();
         TestStrategyStopsOnStopLoss();
 
-		// SimulationEngine tests
+        // SimulationEngine tests
         TestSimulationEngine_NoTradeUntilBothQuotes();
-        TestSimulationEngine_SellB_WhenBExpensive();
-        TestSimulationEngine_BuyB_WhenBCheap();
-        TestSimulationEngine_StopLossFlattensAndStops();
-        TestSimulationEngine_EndOfDayFlattensWhenOpen();
-
-
+        TestSimulationEngine_SellB_WhenExecutableSellEdge();
+        TestSimulationEngine_BuyB_WhenExecutableBuyEdge();
+        TestSimulationEngine_StopLoss_ClosesAsTradeAndStops();
+        TestSimulationEngine_EndOfDayClose_Tagged();
     }
     catch (const std::exception& e)
     {

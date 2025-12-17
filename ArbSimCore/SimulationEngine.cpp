@@ -10,11 +10,6 @@ namespace ArbSim {
     {
     }
 
-    double SimulationEngine::CalcMid(const MarketEvent& ev)
-    {
-        return (ev.bid + ev.ask) * 0.5;
-    }
-
     void SimulationEngine::OnQuoteA(const MarketEvent& ev)
     {
         lastQuoteA_ = ev;
@@ -26,16 +21,46 @@ namespace ArbSim {
         pnl_.OnQuoteB(ev);
     }
 
+    void SimulationEngine::ClosePositionAtMidAsTrade(long long time, const char* reasonTag)
+    {
+        const int pos = pnl_.GetPositionB();
+        if (pos == 0)
+            return;
+
+        if (!pnl_.HasMidB())
+        {
+            return;
+        }
+
+        const double mid = pnl_.GetLastMidB();
+        const int qty = (pos > 0) ? pos : -pos;
+        const Side side = (pos > 0) ? Side::Sell : Side::Buy;
+
+        // Execute close as a real trade so it:
+        // 1) is logged as BUY/SELL
+        // 2) increments tradedLots_
+        // 3) updates max exposure and PnL consistently
+        pnl_.ApplyTradeB(time, side, mid, qty);
+
+        tradeLog_
+            << time
+            << "," << (side == Side::Buy ? "BUY" : "SELL")
+            << ",FutureB," << qty
+            << "," << mid
+            << "," << reasonTag
+            << "\n";
+    }
     void SimulationEngine::CheckStopLossAndMaybeFlatten(long long time)
     {
         if (stopTrading_)
+        {
             return;
+        }
 
         const auto& params = strategy_.GetParams();
         if (pnl_.GetTotalPnl() < params.StopLossPnl)
         {
-            pnl_.FlattenAtMid(time);
-            tradeLog_ << time << ",FLATTEN,FutureB,0," << pnl_.GetLastMidB() << "\n";
+            ClosePositionAtMidAsTrade(time, "STOP_LOSS_CLOSE");
             stopTrading_ = true;
         }
     }
@@ -43,16 +68,24 @@ namespace ArbSim {
     void SimulationEngine::TryTrade(long long time)
     {
         if (stopTrading_)
+        {
             return;
+        }
 
         if (!lastQuoteA_.has_value() || !lastQuoteB_.has_value())
+        {
             return;
+        }
 
-        const double midA = CalcMid(*lastQuoteA_);
-        const double midB = CalcMid(*lastQuoteB_);
+        const auto& a = *lastQuoteA_;
+        const auto& b = *lastQuoteB_;
+
+        const double sellEdge = b.bid - a.ask; // sell B at bid, buy A at ask
+        const double buyEdge = a.bid - b.ask; // sell A at bid, buy B at ask
 
         StrategyAction action =
-            strategy_.Decide(midA, midB, pnl_.GetPositionB(), pnl_.GetTotalPnl());
+            strategy_.Decide(sellEdge, buyEdge, pnl_.GetPositionB(), pnl_.GetTotalPnl());
+
 
         if (action == StrategyAction::BuyB)
         {
@@ -69,28 +102,35 @@ namespace ArbSim {
     void SimulationEngine::OnEvent(const MarketEvent& ev)
     {
         if (ev.instrumentId == InstrumentId::FutureA)
+        {
             OnQuoteA(ev);
+        }
         else if (ev.instrumentId == InstrumentId::FutureB)
+        {
             OnQuoteB(ev);
+        }
 
         if (!lastQuoteA_.has_value() || !lastQuoteB_.has_value())
+        {
             return;
+        }
 
         CheckStopLossAndMaybeFlatten(ev.sendingTime);
         if (stopTrading_)
+        {
             return;
+        }
 
         TryTrade(ev.sendingTime);
     }
 
     void SimulationEngine::OnEndOfDay(long long time)
     {
-        // Optional: if you want to ensure flat at end of simulation.
-        // Keep or delete depending on spec interpretation.
-        if (!stopTrading_ && pnl_.GetPositionB() != 0 && pnl_.HasMidB())
+        // Close any remaining open position at mid as a real trade.
+         // If you decide you do NOT want EOD close, delete this method body.
+        if (!stopTrading_)
         {
-            pnl_.FlattenAtMid(time);
-            tradeLog_ << time << ",FLATTEN_EOD,FutureB,0," << pnl_.GetLastMidB() << "\n";
+            ClosePositionAtMidAsTrade(time, "EOD_CLOSE");
         }
     }
 

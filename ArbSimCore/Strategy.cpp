@@ -16,8 +16,8 @@ namespace ArbSim
     }
 
     StrategyAction Strategy::Decide(
-        double midA,
-        double midB,
+        double sellEdge,
+        double buyEdge,
         int positionB,
         double currentPnl
     ) const
@@ -27,11 +27,11 @@ namespace ArbSim
             return StrategyAction::None;
         }
 
-        const double edge = midB - midA;
-
-        if (edge >= params_.MinArbitrageEdge)
+        if (sellEdge >= params_.MinArbitrageEdge)
         {
-            if (std::abs(positionB) >= params_.MaxAbsExposureLots)
+            // exposure check fixed below in section 2
+            const int nextPos = positionB - 1;
+            if (std::abs(nextPos) > params_.MaxAbsExposureLots)
             {
                 return StrategyAction::None;
             }
@@ -39,9 +39,10 @@ namespace ArbSim
             return StrategyAction::SellB;
         }
 
-        if (edge <= -params_.MinArbitrageEdge)
+        if (buyEdge >= params_.MinArbitrageEdge)
         {
-            if (std::abs(positionB) >= params_.MaxAbsExposureLots)
+            const int nextPos = positionB + 1;
+            if (std::abs(nextPos) > params_.MaxAbsExposureLots)
             {
                 return StrategyAction::None;
             }

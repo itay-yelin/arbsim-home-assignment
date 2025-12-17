@@ -19,13 +19,13 @@ namespace ArbSim {
         void PrintSummary(std::ostream& out) const;
 
     private:
-        static double CalcMid(const MarketEvent& ev);
-
         void OnQuoteA(const MarketEvent& ev);
         void OnQuoteB(const MarketEvent& ev);
 
         void TryTrade(long long time);
         void CheckStopLossAndMaybeFlatten(long long time);
+        void ClosePositionAtMidAsTrade(long long time, const char* reasonTag);
+
 
     private:
         Strategy strategy_;
