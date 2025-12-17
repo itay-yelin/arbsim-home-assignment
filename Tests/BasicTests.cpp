@@ -7,6 +7,7 @@
 #include "MarketData.h"
 #include <windows.h>
 #include "PnlTracker.h"
+#include "Strategy.h"
 
 using namespace ArbSim;
 
@@ -14,6 +15,127 @@ static void PrintLine(const std::string& s)
 {
     std::cout << s << std::endl;
     OutputDebugStringA((s + "\n").c_str());
+}
+
+
+static void PrintOk(const std::string& s)
+{
+    PrintLine("[OK] " + s);
+}
+
+
+void TestStrategyReturnsNoneWhenEdgeSmall()
+{
+    ArbSim::StrategyParams params;
+    params.MinArbitrageEdge = 2.0;
+    params.MaxAbsExposureLots = 2;
+    params.StopLossPnl = -50.0;
+
+    ArbSim::Strategy strategy(params);
+
+    ArbSim::StrategyAction action = strategy.Decide(
+        100.0,
+        101.0,
+        0,
+        0.0
+    );
+
+    assert(action == ArbSim::StrategyAction::None);
+
+    PrintOk("Strategy returns None when edge is small");
+}
+
+void TestStrategySellsWhenBExpensive()
+{
+    ArbSim::StrategyParams params;
+    params.MinArbitrageEdge = 2.0;
+    params.MaxAbsExposureLots = 2;
+    params.StopLossPnl = -50.0;
+
+    ArbSim::Strategy strategy(params);
+
+    ArbSim::StrategyAction action = strategy.Decide(
+        100.0,
+        103.0,
+        0,
+        0.0
+    );
+
+    assert(action == ArbSim::StrategyAction::SellB);
+
+    PrintOk("Strategy sells when B is expensive vs A");
+}
+
+void TestStrategyBuysWhenBCheap()
+{
+    ArbSim::StrategyParams params;
+    params.MinArbitrageEdge = 2.0;
+    params.MaxAbsExposureLots = 2;
+    params.StopLossPnl = -50.0;
+
+    ArbSim::Strategy strategy(params);
+
+    ArbSim::StrategyAction action = strategy.Decide(
+        100.0,
+        97.0,
+        0,
+        0.0
+    );
+
+    assert(action == ArbSim::StrategyAction::BuyB);
+
+    PrintOk("Strategy buys when B is cheap vs A");
+}
+
+void TestStrategyRespectsExposureLimit()
+{
+    ArbSim::StrategyParams params;
+    params.MinArbitrageEdge = 1.0;
+    params.MaxAbsExposureLots = 2;
+    params.StopLossPnl = -50.0;
+
+    ArbSim::Strategy strategy(params);
+
+    ArbSim::StrategyAction action1 = strategy.Decide(
+        100.0,
+        102.0,
+        2,
+        0.0
+    );
+
+    assert(action1 == ArbSim::StrategyAction::None);
+
+    ArbSim::StrategyAction action2 = strategy.Decide(
+        100.0,
+        98.0,
+        -2,
+        0.0
+    );
+
+    assert(action2 == ArbSim::StrategyAction::None);
+
+    PrintOk("Strategy respects exposure limit");
+}
+
+void TestStrategyStopsOnStopLoss()
+{
+    ArbSim::StrategyParams params;
+    params.MinArbitrageEdge = 1.0;
+    params.MaxAbsExposureLots = 2;
+    params.StopLossPnl = -10.0;
+
+    ArbSim::Strategy strategy(params);
+
+    ArbSim::StrategyAction action = strategy.Decide(
+        100.0,
+        120.0,
+        0,
+        -11.0
+    );
+
+    assert(action == ArbSim::StrategyAction::None);
+
+    PrintOk("Strategy returns None when stop loss breached");
 }
 
 
@@ -76,7 +198,7 @@ void TestStreamMergerOrdering()
         hasPrev = true;
     }
 
-    PrintLine("StreamMerger keeps chronological order");
+    PrintOk("StreamMerger keeps chronological order");
 }
 
 void TestStreamMergerContainsFutureB()
@@ -116,7 +238,7 @@ void TestPnlTrackerInitialState()
     assert(pnl.GetPositionB() == 0);
     assert(pnl.GetTotalPnl() == 0.0);
 
-    PrintLine("PnlTracker initial state");
+    PrintOk("PnlTracker initial state");
 }
 
 void TestPnlTrackerBuyAndMarkToMarket()
@@ -137,7 +259,7 @@ void TestPnlTrackerBuyAndMarkToMarket()
     assert(std::abs(pnl.GetTotalPnl() - expectedPnl) < 1e-9);
     assert(pnl.GetPositionB() == 1);
 
-    PrintLine("PnlTracker buy and MTM");
+    PrintOk("PnlTracker buy and MTM");
 }
 
 void TestPnlTrackerRoundTrip()
@@ -156,7 +278,7 @@ void TestPnlTrackerRoundTrip()
     assert(pnl.GetPositionB() == 0);
     assert(std::abs(pnl.GetTotalPnl() + 2.0) < 1e-9);
 
-    PrintLine("PnlTracker round trip realized PnL");
+    PrintOk("PnlTracker round trip realized PnL");
 }
 
 void TestPnlTrackerMaxExposure()
@@ -174,22 +296,31 @@ void TestPnlTrackerMaxExposure()
 
     assert(pnl.GetMaxAbsExposure() == 2);
 
-    PrintLine("PnlTracker max exposure");
+    PrintOk("PnlTracker max exposure");
 }
 
 int main()
 {
     try
     {
+		// CsvReader tests, streamermer tests
         TestCsvReaderReadsFirstLine();
         TestCsvReaderEof();
         TestStreamMergerOrdering();
         TestStreamMergerContainsFutureB();
 
+		// PnL Tracker tests
         TestPnlTrackerInitialState();
         TestPnlTrackerBuyAndMarkToMarket();
         TestPnlTrackerRoundTrip();
         TestPnlTrackerMaxExposure();
+
+		// Strategy tests
+        TestStrategyReturnsNoneWhenEdgeSmall();
+        TestStrategySellsWhenBExpensive();
+        TestStrategyBuysWhenBCheap();
+        TestStrategyRespectsExposureLimit();
+        TestStrategyStopsOnStopLoss();
     }
     catch (const std::exception& e)
     {

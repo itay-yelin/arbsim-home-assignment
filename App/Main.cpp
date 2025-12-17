@@ -9,25 +9,15 @@
 
 using namespace ArbSim;
 
-
 static double CalcMid(const MarketEvent& ev)
 {
     return (ev.bid + ev.ask) * 0.5;
 }
 
-
 int main()
 {
     try
     {
-        StrategyParams params;
-        params.MinArbitrageEdge = 1.0;
-        params.MaxAbsExposureLots = 2;
-        params.StopLossPnl = -50.0;
-
-        Strategy strategy(params);
-        bool stopTrading = false;
-
         CsvReader readerA("Data/FutureA.csv");
         CsvReader readerB("Data/FutureB.csv");
 
@@ -35,10 +25,19 @@ int main()
 
         PnlTracker pnl;
 
+        StrategyParams params;
+        params.MinArbitrageEdge = 1.0;
+        params.MaxAbsExposureLots = 2;
+        params.StopLossPnl = -50.0;
+
+        Strategy strategy(params);
+
+        bool stopTrading = false;
+
         std::optional<MarketEvent> lastQuoteA;
         std::optional<MarketEvent> lastQuoteB;
 
-        MarketEvent event;
+        MarketEvent event{};
 
         while (merger.ReadNext(event))
         {
@@ -51,27 +50,27 @@ int main()
                 lastQuoteB = event;
                 pnl.OnQuoteB(event);
             }
+
             if (!lastQuoteA.has_value() || !lastQuoteB.has_value())
             {
                 continue;
             }
 
-            const double midA = CalcMid(*lastQuoteA);
-            const double midB = CalcMid(*lastQuoteB);
-
-            const double edge = midB - midA;
-
             if (!stopTrading && pnl.GetTotalPnl() < params.StopLossPnl)
             {
                 pnl.FlattenAtMid(event.sendingTime);
-                std::cout << event.sendingTime << ",FLATTEN,FutureB," << pnl.GetLastMidB() << std::endl;
+                std::cout << event.sendingTime << ",FLATTEN,FutureB,0," << pnl.GetLastMidB() << std::endl;
                 stopTrading = true;
+                continue;
             }
 
             if (stopTrading)
             {
                 continue;
             }
+
+            const double midA = CalcMid(*lastQuoteA);
+            const double midB = CalcMid(*lastQuoteB);
 
             StrategyAction action = strategy.Decide(midA, midB, pnl.GetPositionB(), pnl.GetTotalPnl());
 
