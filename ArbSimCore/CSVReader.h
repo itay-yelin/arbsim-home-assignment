@@ -9,13 +9,13 @@
 namespace ArbSim {
     enum CsvColumn
     {
-        SendingTime = 0,
-        InstrumentId,
-        EventTypeId,
-        BidSize,
-        Bid,
-        Ask,
-        AskSize,
+        ColSendingTime = 0,
+        ColInstrumentId,
+        ColEventTypeId,
+        ColBidSize,
+        ColBid,
+        ColAsk,
+        ColAskSize,
         ColumnCount
     };
 

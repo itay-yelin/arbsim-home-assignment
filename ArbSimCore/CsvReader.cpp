@@ -78,49 +78,49 @@ namespace ArbSim
             std::size_t idx = 0;
 
             idx = 0;
-            event.sendingTime = std::stoll(parts[CsvColumn::SendingTime], &idx);
-            if (idx != parts[CsvColumn::SendingTime].size())
+            event.sendingTime = std::stoll(parts[CsvColumn::ColSendingTime], &idx);
+            if (idx != parts[CsvColumn::ColSendingTime].size())
             {
                 throw std::runtime_error("sendingTime trailing chars");
             }
 
-            event.instrumentId = StringToInstrument(parts[CsvColumn::InstrumentId]);
+            event.instrumentId = StringToInstrument(parts[CsvColumn::ColInstrumentId]);
             if (event.instrumentId == InstrumentId::Unknown)
             {
-                throw std::runtime_error("unknown instrumentId: " + parts[CsvColumn::InstrumentId]);
+                throw std::runtime_error("unknown instrumentId: " + parts[CsvColumn::ColInstrumentId]);
             }
 
             idx = 0;
-            event.eventTypeId = std::stoi(parts[CsvColumn::EventTypeId], &idx);
-            if (idx != parts[CsvColumn::EventTypeId].size())
+            event.eventTypeId = std::stoi(parts[CsvColumn::ColEventTypeId], &idx);
+            if (idx != parts[CsvColumn::ColEventTypeId].size())
             {
                 throw std::runtime_error("eventTypeId trailing chars");
             }
 
             idx = 0;
-            event.bidSize = std::stoi(parts[CsvColumn::BidSize], &idx);
-            if (idx != parts[CsvColumn::BidSize].size())
+            event.bidSize = std::stoi(parts[CsvColumn::ColBidSize], &idx);
+            if (idx != parts[CsvColumn::ColBidSize].size())
             {
                 throw std::runtime_error("bidSize trailing chars");
             }
 
             idx = 0;
-            event.bid = std::stod(parts[CsvColumn::Bid], &idx);
-            if (idx != parts[CsvColumn::Bid].size())
+            event.bid = std::stod(parts[CsvColumn::ColBid], &idx);
+            if (idx != parts[CsvColumn::ColBid].size())
             {
                 throw std::runtime_error("bid trailing chars");
             }
 
             idx = 0;
-            event.ask = std::stod(parts[CsvColumn::Ask], &idx);
-            if (idx != parts[CsvColumn::Ask].size())
+            event.ask = std::stod(parts[CsvColumn::ColAsk], &idx);
+            if (idx != parts[CsvColumn::ColAsk].size())
             {
                 throw std::runtime_error("ask trailing chars");
             }
 
             idx = 0;
-            event.askSize = std::stoi(parts[CsvColumn::AskSize], &idx);
-            if (idx != parts[CsvColumn::AskSize].size())
+            event.askSize = std::stoi(parts[CsvColumn::ColAskSize], &idx);
+            if (idx != parts[CsvColumn::ColAskSize].size())
             {
                 throw std::runtime_error("askSize trailing chars");
             }

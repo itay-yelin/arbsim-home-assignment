@@ -2,59 +2,68 @@
 #define MARKET_DATA_H
 
 #include <string>
-#include <cstdint>
 
-namespace ArbSim 
+namespace ArbSim
 {
-    enum class InstrumentId 
+
+enum class InstrumentId
+{
+    FutureA,
+    FutureB,
+    Unknown
+};
+
+enum class Side
+{
+    Buy,
+    Sell
+};
+
+struct MarketEvent
+{
+    long long sendingTime;
+    InstrumentId instrumentId;
+    int eventTypeId;
+    int bidSize;
+    double bid;
+    double ask;
+    int askSize;
+};
+
+inline std::string InstrumentToString(InstrumentId id)
+{
+    switch (id)
     {
-        FutureA,
-        FutureB,
-        Unknown
-    };
-
-    struct MarketEvent 
-    {
-        std::int64_t sendingTime;
-        InstrumentId instrumentId;
-        int eventTypeId;
-        int bidSize;
-        double bid;
-        double ask;
-        int askSize;
-    };
-
-    enum class Side 
-    {
-        Buy,
-        Sell
-    };
-
-
-    inline std::string InstrumentToString(InstrumentId id) {
-        switch (id) 
+        case InstrumentId::FutureA:
         {
-            case InstrumentId::FutureA:
-            {
-                return "FutureA";
-            }
-            case InstrumentId::FutureB:
-            {
-                return "FutureB";
-            }
-            default:
-            {
-                return "Unknown";
-            }
+            return "FutureA";
+        }
+        case InstrumentId::FutureB:
+        {
+            return "FutureB";
+        }
+        default:
+        {
+            return "Unknown";
         }
     }
+}
 
-    inline InstrumentId StringToInstrument(const std::string& s)
+inline InstrumentId StringToInstrument(const std::string& s)
+{
+    if (s == "FutureA")
     {
-        if (s == "FutureA") return InstrumentId::FutureA;
-        if (s == "FutureB") return InstrumentId::FutureB;
-        return InstrumentId::Unknown;
+        return InstrumentId::FutureA;
     }
 
+    if (s == "FutureB")
+    {
+        return InstrumentId::FutureB;
+    }
+
+    return InstrumentId::Unknown;
 }
+
+} // namespace ArbSim
+
 #endif // MARKET_DATA_H
