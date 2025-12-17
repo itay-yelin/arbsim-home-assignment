@@ -38,5 +38,8 @@
     <ClCompile Include="StreamMerger.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="PnlTracker.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
 </Project>
