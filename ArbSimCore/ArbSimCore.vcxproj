@@ -147,12 +147,14 @@
     <ClInclude Include="framework.h" />
     <ClInclude Include="MarketData.h" />
     <ClInclude Include="PnlTracker.h" />
+    <ClInclude Include="SimulationEngine.h" />
     <ClInclude Include="Strategy.h" />
     <ClInclude Include="StreamMerger.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="CsvReader.cpp" />
     <ClCompile Include="PnlTracker.cpp" />
+    <ClCompile Include="SimulationEngine.cpp" />
     <ClCompile Include="Strategy.cpp" />
     <ClCompile Include="StreamMerger.cpp" />
   </ItemGroup>
