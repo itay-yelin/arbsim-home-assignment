@@ -28,6 +28,9 @@ int main()
 {
     try
     {
+        std::ios::sync_with_stdio(false);
+        std::cin.tie(nullptr);
+
         const auto t_total0 = Clock::now();
         Config cfg("config.cfg");
 
