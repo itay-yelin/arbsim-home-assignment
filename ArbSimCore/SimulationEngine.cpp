@@ -1,13 +1,19 @@
 #include "SimulationEngine.h"
 #include <ostream>
+#include <cstdio>
 
 namespace ArbSim {
-
-    SimulationEngine::SimulationEngine(Strategy strategy, PnlTracker pnl, std::ostream& tradeLog)
+    SimulationEngine::SimulationEngine(Strategy strategy, PnlTracker pnl, std::string& tradeLogBuffer)
         : strategy_(std::move(strategy))
         , pnl_(std::move(pnl))
-        , tradeLog_(tradeLog)
+        , tradeLog_(tradeLogBuffer)
     {
+    }
+
+    void SimulationEngine::AppendLogLine(const char* line)
+    {
+        tradeLog_.append(line);
+        tradeLog_.push_back('\n');
     }
 
     void SimulationEngine::OnQuoteA(const MarketEvent& ev)
@@ -45,13 +51,22 @@ namespace ArbSim {
         // 3) updates max exposure and PnL consistently
         pnl_.ApplyTradeB(time, side, mid, qty);
 
-        tradeLog_
-            << time
-            << "," << (side == Side::Buy ? "BUY" : "SELL")
-            << ",FutureB," << qty
-            << "," << mid
-            << "," << reasonTag
-            << "\n";
+        char buf[160];
+        const int n = std::snprintf(
+            buf, sizeof(buf),
+            "%lld,%s,FutureB,%d,%.10g,%s",
+            time,
+            (side == Side::Buy ? "BUY" : "SELL"),
+            qty,
+            mid,
+            reasonTag
+        );
+
+        if (n > 0) 
+        { 
+            tradeLog_.append(buf, buf + n);
+            tradeLog_.push_back('\n');
+        }
     }
     void SimulationEngine::CheckStopLossAndMaybeFlatten(long long time)
     {
@@ -98,7 +113,14 @@ namespace ArbSim {
             }
 
             pnl_.ApplyTradeB(time, Side::Buy, b.ask, 1);
-            tradeLog_ << time << ",BUY,FutureB,1," << b.ask << "\n";
+            char buf[128];
+            const int n = std::snprintf(buf, sizeof(buf), "%lld,BUY,FutureB,1,%.10g", time, b.ask);
+            if (n > 0) 
+            {
+                tradeLog_.append(buf, buf + n);
+                tradeLog_.push_back('\n');
+            }
+
         }
         else if (action == StrategyAction::SellB)
         {
@@ -108,7 +130,14 @@ namespace ArbSim {
             }
 
             pnl_.ApplyTradeB(time, Side::Sell, b.bid, 1);
-            tradeLog_ << time << ",SELL,FutureB,1," << b.bid << "\n";
+
+            char buf[128];
+            const int n = std::snprintf(buf, sizeof(buf), "%lld,SELL,FutureB,1,%.10g", time, b.bid);
+            if (n > 0) 
+            { 
+                tradeLog_.append(buf, buf + n);
+                tradeLog_.push_back('\n');
+            }
         }
 
     }

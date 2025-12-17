@@ -11,7 +11,7 @@ namespace ArbSim {
     class SimulationEngine
     {
     public:
-        SimulationEngine(Strategy strategy, PnlTracker pnl, std::ostream& tradeLog);
+        SimulationEngine(Strategy strategy, PnlTracker pnl, std::string& tradeLogBuffer);
 
         void OnEvent(const MarketEvent& ev);
         void OnEndOfDay(long long time);
@@ -25,7 +25,8 @@ namespace ArbSim {
         void TryTrade(long long time);
         void CheckStopLossAndMaybeFlatten(long long time);
         void ClosePositionAtMidAsTrade(long long time, const char* reasonTag);
-
+        
+        void AppendLogLine(const char* line);
 
     public:
         // Returns true if trading has been stopped (e.g. by stop loss or end of day)
@@ -36,7 +37,7 @@ namespace ArbSim {
     private:
         Strategy strategy_;
         PnlTracker pnl_;
-        std::ostream& tradeLog_;
+        std::string& tradeLog_;
 
         bool stopTrading_ = false;
         MarketEvent lastQuoteA_;

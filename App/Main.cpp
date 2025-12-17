@@ -47,7 +47,10 @@ int main()
         Strategy strategy(params);
         PnlTracker pnl;
 
-        SimulationEngine engine(strategy, pnl, std::cout);
+        std::string tradeBuf;
+        tradeBuf.reserve(1 << 20); // 1MB,
+
+        SimulationEngine engine(strategy, pnl, tradeBuf);
 
         MarketEvent ev{};
         long long lastTime = 0;
@@ -73,7 +76,10 @@ int main()
         
         const auto t_loop1 = Clock::now();
         engine.OnEndOfDay(lastTime);
+
+        std::cout << tradeBuf;
         engine.PrintSummary(std::cout);
+
 
         const auto t_total1 = Clock::now();
 
