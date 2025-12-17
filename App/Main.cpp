@@ -5,6 +5,7 @@
 #include "StreamMerger.h"
 #include "MarketData.h"
 #include "PnlTracker.h"
+#include "Strategy.h"
 
 using namespace ArbSim;
 
@@ -19,6 +20,14 @@ int main()
 {
     try
     {
+        StrategyParams params;
+        params.MinArbitrageEdge = 1.0;
+        params.MaxAbsExposureLots = 2;
+        params.StopLossPnl = -50.0;
+
+        Strategy strategy(params);
+        bool stopTrading = false;
+
         CsvReader readerA("Data/FutureA.csv");
         CsvReader readerB("Data/FutureB.csv");
 
@@ -52,12 +61,30 @@ int main()
 
             const double edge = midB - midA;
 
-            // TODO (next steps):
-            // 1. Decide action based on edge and parameters:
-            //    MinArbEdge, MaxAbsExposure, StopLossPnl
-            // 2. If Buy:  pnl.ApplyTradeB(event.sendingTime, Side::Buy,  lastQuoteB->ask, 1);
-            // 3. If Sell: pnl.ApplyTradeB(event.sendingTime, Side::Sell, lastQuoteB->bid, 1);
-            // 4. Stop-loss check and FlattenAtMid
+            if (!stopTrading && pnl.GetTotalPnl() < params.StopLossPnl)
+            {
+                pnl.FlattenAtMid(event.sendingTime);
+                std::cout << event.sendingTime << ",FLATTEN,FutureB," << pnl.GetLastMidB() << std::endl;
+                stopTrading = true;
+            }
+
+            if (stopTrading)
+            {
+                continue;
+            }
+
+            StrategyAction action = strategy.Decide(midA, midB, pnl.GetPositionB(), pnl.GetTotalPnl());
+
+            if (action == StrategyAction::BuyB)
+            {
+                pnl.ApplyTradeB(event.sendingTime, Side::Buy, lastQuoteB->ask, 1);
+                std::cout << event.sendingTime << ",BUY,FutureB,1," << lastQuoteB->ask << std::endl;
+            }
+            else if (action == StrategyAction::SellB)
+            {
+                pnl.ApplyTradeB(event.sendingTime, Side::Sell, lastQuoteB->bid, 1);
+                std::cout << event.sendingTime << ",SELL,FutureB,1," << lastQuoteB->bid << std::endl;
+            }
         }
 
         std::cout << "Simulation finished" << std::endl;
