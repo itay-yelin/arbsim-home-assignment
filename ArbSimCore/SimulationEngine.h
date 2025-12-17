@@ -27,6 +27,12 @@ namespace ArbSim {
         void ClosePositionAtMidAsTrade(long long time, const char* reasonTag);
 
 
+    public:
+        // Returns true if trading has been stopped (e.g. by stop loss or end of day)
+        bool IsStopped() const { 
+            return stopTrading_; 
+        }
+        
     private:
         Strategy strategy_;
         PnlTracker pnl_;
