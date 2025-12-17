@@ -89,14 +89,25 @@ namespace ArbSim {
 
         if (action == StrategyAction::BuyB)
         {
-            pnl_.ApplyTradeB(time, Side::Buy, lastQuoteB_->ask, 1);
-            tradeLog_ << time << ",BUY,FutureB,1," << lastQuoteB_->ask << "\n";
+            if (b.askSize < 1)
+            {
+                return; // no liquidity on ask
+            }
+
+            pnl_.ApplyTradeB(time, Side::Buy, b.ask, 1);
+            tradeLog_ << time << ",BUY,FutureB,1," << b.ask << "\n";
         }
         else if (action == StrategyAction::SellB)
         {
-            pnl_.ApplyTradeB(time, Side::Sell, lastQuoteB_->bid, 1);
-            tradeLog_ << time << ",SELL,FutureB,1," << lastQuoteB_->bid << "\n";
+            if (b.bidSize < 1)
+            {
+                return; // no liquidity on bid
+            }
+
+            pnl_.ApplyTradeB(time, Side::Sell, b.bid, 1);
+            tradeLog_ << time << ",SELL,FutureB,1," << b.bid << "\n";
         }
+
     }
 
     void SimulationEngine::OnEvent(const MarketEvent& ev)

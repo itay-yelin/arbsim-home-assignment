@@ -57,17 +57,22 @@ static int CountSubstr(const std::string& s, const std::string& sub)
     return count;
 }
 
-static MarketEvent MakeQuote(long long t, InstrumentId inst, double bid, double ask)
+static MarketEvent MakeQuote(long long t, InstrumentId inst, double bid, double ask, int bidSize, int askSize)
 {
     MarketEvent e{};
     e.sendingTime = t;
     e.instrumentId = inst;
     e.eventTypeId = 0;
-    e.bidSize = 100;
+    e.bidSize = bidSize;
     e.bid = bid;
     e.ask = ask;
-    e.askSize = 100;
+    e.askSize = askSize;
     return e;
+}
+
+static MarketEvent MakeQuote(long long t, InstrumentId inst, double bid, double ask)
+{
+    return MakeQuote(t, inst, bid, ask, /*bidSize*/100, /*askSize*/100);
 }
 
 static void WriteTextFile(const std::string& path, const std::string& content)
@@ -99,6 +104,26 @@ void TestSimulationEngine_NoTradeUntilBothQuotes()
 
     PrintOk("SimulationEngine no trade until both quotes");
 }
+
+void TestSimulationEngine_BuyBlocked_WhenAskSizeZero()
+{
+    StrategyParams p{};
+    p.MinArbitrageEdge = 1.0;
+    p.MaxAbsExposureLots = 2;
+    p.StopLossPnl = -50.0;
+
+    std::ostringstream log;
+    SimulationEngine eng(Strategy(p), PnlTracker(), log);
+
+    // Force BuyB signal: A_bid - B_ask >= 1
+    eng.OnEvent(MakeQuote(100, InstrumentId::FutureA, 101.0, 102.0, 100, 100));
+    // B_ask=100, but askSize=0 => should not buy
+    eng.OnEvent(MakeQuote(101, InstrumentId::FutureB, 99.0, 100.0, 100, 0));
+
+    Require(CountSubstr(log.str(), ",BUY,FutureB,1,") == 0, "Expected no BUY when askSize is 0");
+    PrintOk("SimulationEngine blocks BuyB when askSize=0");
+}
+
 
 void TestSimulationEngine_SellB_WhenExecutableSellEdge()
 {
@@ -279,6 +304,25 @@ void TestStrategyStopsOnStopLoss()
     StrategyAction a = s.Decide(/*sellEdge*/100.0, /*buyEdge*/100.0, /*pos*/0, /*pnl*/-11.0);
     Require(a == StrategyAction::None, "Strategy: expected None when stop loss breached");
     PrintOk("Strategy returns None when stop loss breached");
+}
+
+void TestSimulationEngine_SellBlocked_WhenBidSizeZero()
+{
+    StrategyParams p{};
+    p.MinArbitrageEdge = 1.0;
+    p.MaxAbsExposureLots = 2;
+    p.StopLossPnl = -50.0;
+
+    std::ostringstream log;
+    SimulationEngine eng(Strategy(p), PnlTracker(), log);
+
+    // Force SellB signal: B_bid - A_ask >= 1
+    eng.OnEvent(MakeQuote(100, InstrumentId::FutureA, 99.0, 100.0, 100, 100));
+    // B_bid=101, but bidSize=0 => should not sell
+    eng.OnEvent(MakeQuote(101, InstrumentId::FutureB, 101.0, 102.0, 0, 100));
+
+    Require(CountSubstr(log.str(), ",SELL,FutureB,1,") == 0, "Expected no SELL when bidSize is 0");
+    PrintOk("SimulationEngine blocks SellB when bidSize=0");
 }
 
 //================= CsvReader tests =================//
@@ -520,6 +564,8 @@ int main()
         TestSimulationEngine_BuyB_WhenExecutableBuyEdge();
         TestSimulationEngine_StopLoss_ClosesAsTradeAndStops();
         TestSimulationEngine_EndOfDayClose_Tagged();
+        TestSimulationEngine_BuyBlocked_WhenAskSizeZero();
+        TestSimulationEngine_SellBlocked_WhenBidSizeZero();
     }
     catch (const std::exception& e)
     {
