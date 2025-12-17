@@ -39,8 +39,10 @@ namespace ArbSim {
         std::ostream& tradeLog_;
 
         bool stopTrading_ = false;
-        std::optional<MarketEvent> lastQuoteA_;
-        std::optional<MarketEvent> lastQuoteB_;
+        MarketEvent lastQuoteA_;
+        MarketEvent lastQuoteB_;
+        bool hasA_ = false;
+        bool hasB_ = false;
     };
 
 } // namespace ArbSim

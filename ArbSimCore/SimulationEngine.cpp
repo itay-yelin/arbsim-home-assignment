@@ -13,11 +13,14 @@ namespace ArbSim {
     void SimulationEngine::OnQuoteA(const MarketEvent& ev)
     {
         lastQuoteA_ = ev;
+		hasA_ = true;
     }
 
     void SimulationEngine::OnQuoteB(const MarketEvent& ev)
     {
         lastQuoteB_ = ev;
+		hasB_ = true;
+
         pnl_.OnQuoteB(ev);
     }
 
@@ -72,13 +75,13 @@ namespace ArbSim {
             return;
         }
 
-        if (!lastQuoteA_.has_value() || !lastQuoteB_.has_value())
+        if (!hasA_ || !hasB_)
         {
             return;
         }
 
-        const auto& a = *lastQuoteA_;
-        const auto& b = *lastQuoteB_;
+        const auto& a = lastQuoteA_;
+        const auto& b = lastQuoteB_;
 
         const double sellEdge = b.bid - a.ask; // sell B at bid, buy A at ask
         const double buyEdge = a.bid - b.ask; // sell A at bid, buy B at ask
@@ -121,7 +124,7 @@ namespace ArbSim {
             OnQuoteB(ev);
         }
 
-        if (!lastQuoteA_.has_value() || !lastQuoteB_.has_value())
+        if (!hasA_ || !hasB_)
         {
             return;
         }
