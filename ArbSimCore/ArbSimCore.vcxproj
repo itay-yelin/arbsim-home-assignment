@@ -144,7 +144,6 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClInclude Include="CsvReader.h" />
-    <ClInclude Include="framework.h" />
     <ClInclude Include="MarketData.h" />
     <ClInclude Include="PnlTracker.h" />
     <ClInclude Include="SimulationEngine.h" />

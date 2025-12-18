@@ -35,11 +35,6 @@ namespace ArbSim {
         bool ReadNextNonEmptyLine(std::string& line);
 
         static void StripTrailingCarriageReturn(std::string& line);
-        static std::vector<std::string> SplitCsvLine(const std::string& line);
-
-        static long long ParseInt64(const std::string& token, const std::string& fieldName);
-        static int ParseInt(const std::string& token, const std::string& fieldName);
-        static double ParseDouble(const std::string& token, const std::string& fieldName);
     };
 
 } // namespace ArbSim
