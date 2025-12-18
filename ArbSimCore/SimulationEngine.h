@@ -1,5 +1,5 @@
-#pragma once
-#include <optional>
+#ifndef SIMULATION_ENGINE_H
+#define SIMULATION_ENGINE_H
 #include <iosfwd>
 
 #include "MarketData.h"
@@ -47,4 +47,5 @@ namespace ArbSim {
     };
 
 } // namespace ArbSim
-#pragma once
+
+#endif // SIMULATION_ENGINE_H

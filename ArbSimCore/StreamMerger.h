@@ -1,7 +1,6 @@
 #ifndef STREAM_MERGER_H
 #define STREAM_MERGER_H
 
-#include <optional>
 #include "CsvReader.h"
 
 namespace ArbSim {
@@ -17,8 +16,10 @@ namespace ArbSim {
         CsvReader& readerA_;
         CsvReader& readerB_;
 
-        std::optional<MarketEvent> nextA_;
-        std::optional<MarketEvent> nextB_;
+        MarketEvent nextA_;
+        MarketEvent nextB_;
+		bool hasNextA_ = false;
+		bool hasNextB_ = false;
 
         void LoadNextAIfNeeded();
         void LoadNextBIfNeeded();

@@ -4,40 +4,44 @@ namespace ArbSim
 {
 
     StreamMerger::StreamMerger(CsvReader& readerA, CsvReader& readerB)
-        : readerA_(readerA), readerB_(readerB) 
+		: readerA_(readerA), readerB_(readerB), hasNextA_(false), hasNextB_(false)
     {    }
 
     void StreamMerger::LoadNextAIfNeeded() 
     {
-        if (nextA_.has_value()) 
+        if (hasNextA_)
         {
             return;
         }
 
         MarketEvent ev{};
-        if (readerA_.ReadNextEvent(ev)) 
+        if (readerA_.ReadNextEvent(ev))
         {
             nextA_ = ev;
+            hasNextA_ = true;
         }
-        else 
+        else
         {
-            nextA_.reset();
+            hasNextA_ = false;
         }
     }
 
     void StreamMerger::LoadNextBIfNeeded() 
     {
-        if (nextB_.has_value()) {
+        if (hasNextB_)
+        {
             return;
         }
 
         MarketEvent ev{};
-        if (readerB_.ReadNextEvent(ev)) 
+        if (readerB_.ReadNextEvent(ev))
         {
             nextB_ = ev;
+            hasNextB_ = true;
         }
-        else {
-            nextB_.reset();
+        else
+        {
+            hasNextB_ = false;
         }
     }
 
@@ -46,37 +50,37 @@ namespace ArbSim
         LoadNextAIfNeeded();
         LoadNextBIfNeeded();
 
-        if (!nextA_.has_value() && !nextB_.has_value()) 
+        if (!hasNextA_ && !hasNextB_) 
         {
             return false;
         }
 
-        if (nextA_.has_value() && nextB_.has_value()) 
+        if (hasNextA_ && hasNextB_) 
         {
             // tie-break: A first when equal timestamp
-            if (nextA_->sendingTime <= nextB_->sendingTime) 
+            if (nextA_.sendingTime <= nextB_.sendingTime)
             {
-                outEvent = *nextA_;
-                nextA_.reset();
+                outEvent = nextA_;
+                hasNextA_ = false;
                 return true;
             }
-            else 
+            else
             {
-                outEvent = *nextB_;
-                nextB_.reset();
+                outEvent = nextB_;
+                hasNextB_ = false;
                 return true;
             }
         }
 
-        if (nextA_.has_value()) 
+        if (hasNextA_)
         {
-            outEvent = *nextA_;
-            nextA_.reset();
+            outEvent = nextA_;
+            hasNextA_ = false;
             return true;
         }
 
-        outEvent = *nextB_;
-        nextB_.reset();
+        outEvent = nextB_;
+        hasNextB_ = false;
         return true;
     }
 
