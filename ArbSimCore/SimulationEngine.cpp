@@ -34,7 +34,9 @@ namespace ArbSim {
     {
         const int pos = pnl_.GetPositionB();
         if (pos == 0)
+        {
             return;
+        }
 
         if (!pnl_.HasMidB())
         {
@@ -51,6 +53,7 @@ namespace ArbSim {
         // 3) updates max exposure and PnL consistently
         pnl_.ApplyTradeB(time, side, mid, qty);
 
+		// Log the trade with reason
         char buf[160];
         const int n = std::snprintf(
             buf, sizeof(buf),
@@ -170,7 +173,7 @@ namespace ArbSim {
     void SimulationEngine::OnEndOfDay(long long time)
     {
         // Close any remaining open position at mid as a real trade.
-         // If you decide you do NOT want EOD close, delete this method body.
+        // this is optional: If you decide you do NOT want EOD close, delete this
         if (!stopTrading_)
         {
             ClosePositionAtMidAsTrade(time, "EOD_CLOSE");

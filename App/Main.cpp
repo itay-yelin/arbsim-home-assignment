@@ -28,6 +28,7 @@ int main()
 {
     try
     {
+		// remove sync with C I/O for performance
         std::ios::sync_with_stdio(false);
         std::cin.tie(nullptr);
 

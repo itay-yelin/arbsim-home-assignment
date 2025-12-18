@@ -87,12 +87,12 @@ namespace ArbSim
         if (side == Side::Buy)
         {
             positionB_ += quantity;
-            cash_ -= price * static_cast<double>(quantity);
+            cash_ -= price * quantity;
         }
         else
         {
             positionB_ -= quantity;
-            cash_ += price * static_cast<double>(quantity);
+            cash_ += price * quantity;
         }
 
         tradedLots_ += quantity;
@@ -113,7 +113,7 @@ namespace ArbSim
             return totalPnl_;
         }
 
-        totalPnl_ = cash_ + static_cast<double>(positionB_) * lastMidB_;
+        totalPnl_ = cash_ + positionB_ * lastMidB_;
         UpdateExtremes();
         return totalPnl_;
     }
@@ -143,7 +143,7 @@ namespace ArbSim
             return;
         }
 
-        cash_ += static_cast<double>(positionB_) * lastMidB_;
+        cash_ += positionB_ * lastMidB_;
         positionB_ = 0;
 
         MarkToMarket();

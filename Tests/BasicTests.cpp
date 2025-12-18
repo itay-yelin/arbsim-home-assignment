@@ -92,14 +92,15 @@ void TestSimulationEngine_NoTradeUntilBothQuotes()
     p.MaxAbsExposureLots = 2;
     p.StopLossPnl = -50.0;
 
-    std::ostringstream log;
-    SimulationEngine eng(Strategy(p), PnlTracker(), log);
+    std::string tradeBuf;
+    tradeBuf.reserve(1 << 20); // 1MB,
+    SimulationEngine eng(Strategy(p), PnlTracker(), tradeBuf);
 
     eng.OnEvent(MakeQuote(100, InstrumentId::FutureA, 99.0, 101.0));
-    Require(log.str().empty(), "SimEngine: traded before having both quotes");
+    Require(tradeBuf.empty(), "SimEngine: traded before having both quotes");
 
     eng.OnEvent(MakeQuote(101, InstrumentId::FutureB, 99.0, 101.0));
-    Require(CountSubstr(log.str(), ",BUY,") == 0 && CountSubstr(log.str(), ",SELL,") == 0,
+    Require(CountSubstr(tradeBuf, ",BUY,") == 0 && CountSubstr(tradeBuf, ",SELL,") == 0,
         "SimEngine: unexpected trade when no executable edge exists");
 
     PrintOk("SimulationEngine no trade until both quotes");
@@ -112,15 +113,16 @@ void TestSimulationEngine_BuyBlocked_WhenAskSizeZero()
     p.MaxAbsExposureLots = 2;
     p.StopLossPnl = -50.0;
 
-    std::ostringstream log;
-    SimulationEngine eng(Strategy(p), PnlTracker(), log);
+    std::string tradeBuf;
+    tradeBuf.reserve(1 << 20); // 1MB,
+    SimulationEngine eng(Strategy(p), PnlTracker(), tradeBuf);
 
     // Force BuyB signal: A_bid - B_ask >= 1
     eng.OnEvent(MakeQuote(100, InstrumentId::FutureA, 101.0, 102.0, 100, 100));
     // B_ask=100, but askSize=0 => should not buy
     eng.OnEvent(MakeQuote(101, InstrumentId::FutureB, 99.0, 100.0, 100, 0));
 
-    Require(CountSubstr(log.str(), ",BUY,FutureB,1,") == 0, "Expected no BUY when askSize is 0");
+    Require(CountSubstr(tradeBuf, ",BUY,FutureB,1,") == 0, "Expected no BUY when askSize is 0");
     PrintOk("SimulationEngine blocks BuyB when askSize=0");
 }
 
@@ -132,15 +134,16 @@ void TestSimulationEngine_SellB_WhenExecutableSellEdge()
     p.MaxAbsExposureLots = 2;
     p.StopLossPnl = -50.0;
 
-    std::ostringstream log;
-    SimulationEngine eng(Strategy(p), PnlTracker(), log);
+    std::string tradeBuf;
+    tradeBuf.reserve(1 << 20); // 1MB,
+    SimulationEngine eng(Strategy(p), PnlTracker(), tradeBuf);
 
     // sellEdge = B_bid - A_ask
     // A_ask = 100, B_bid = 101 => sellEdge = 1 => SellB
     eng.OnEvent(MakeQuote(100, InstrumentId::FutureA, 99.0, 100.0));
     eng.OnEvent(MakeQuote(101, InstrumentId::FutureB, 101.0, 102.0));
 
-    Require(CountSubstr(log.str(), ",SELL,FutureB,1,") == 1, "SimEngine: expected one SELL");
+    Require(CountSubstr(tradeBuf, ",SELL,FutureB,1,") == 1, "SimEngine: expected one SELL");
     PrintOk("SimulationEngine SellB on executable sellEdge");
 }
 
@@ -151,15 +154,17 @@ void TestSimulationEngine_BuyB_WhenExecutableBuyEdge()
     p.MaxAbsExposureLots = 2;
     p.StopLossPnl = -50.0;
 
-    std::ostringstream log;
-    SimulationEngine eng(Strategy(p), PnlTracker(), log);
+
+    std::string tradeBuf;
+    tradeBuf.reserve(1 << 20); // 1MB,
+    SimulationEngine eng(Strategy(p), PnlTracker(), tradeBuf);
 
     // buyEdge = A_bid - B_ask
     // A_bid = 101, B_ask = 100 => buyEdge = 1 => BuyB
     eng.OnEvent(MakeQuote(100, InstrumentId::FutureA, 101.0, 102.0));
     eng.OnEvent(MakeQuote(101, InstrumentId::FutureB, 99.0, 100.0));
 
-    Require(CountSubstr(log.str(), ",BUY,FutureB,1,") == 1, "SimEngine: expected one BUY");
+    Require(CountSubstr(tradeBuf, ",BUY,FutureB,1,") == 1, "SimEngine: expected one BUY");
     PrintOk("SimulationEngine BuyB on executable buyEdge");
 }
 
@@ -170,8 +175,9 @@ void TestSimulationEngine_StopLoss_ClosesAsTradeAndStops()
     p.MaxAbsExposureLots = 10;
     p.StopLossPnl = -0.5;
 
-    std::ostringstream log;
-    SimulationEngine eng(Strategy(p), PnlTracker(), log);
+    std::string tradeBuf;
+    tradeBuf.reserve(1 << 20); // 1MB,
+    SimulationEngine eng(Strategy(p), PnlTracker(), tradeBuf);
 
     // Force BuyB:
     // A_bid - B_ask >= 1
@@ -183,18 +189,17 @@ void TestSimulationEngine_StopLoss_ClosesAsTradeAndStops()
     // PnL approx = cash(-100) + pos(1)*98.5 = -1.5 < -0.5 => stop and close at mid
     eng.OnEvent(MakeQuote(102, InstrumentId::FutureB, 98.0, 99.0));
 
-    const std::string out = log.str();
-    Require(CountSubstr(out, "STOP_LOSS_CLOSE") == 1, "SimEngine: expected STOP_LOSS_CLOSE tag");
-    Require(CountSubstr(out, ",BUY,FutureB,") + CountSubstr(out, ",SELL,FutureB,") >= 2,
+    Require(CountSubstr(tradeBuf, "STOP_LOSS_CLOSE") == 1, "SimEngine: expected STOP_LOSS_CLOSE tag");
+    Require(CountSubstr(tradeBuf, ",BUY,FutureB,") + CountSubstr(tradeBuf, ",SELL,FutureB,") >= 2,
         "SimEngine: expected at least open trade and stop-loss close trade");
 
-    const std::string before = log.str();
+    const std::string before(tradeBuf);
 
     // After stop, should not trade anymore
     eng.OnEvent(MakeQuote(103, InstrumentId::FutureA, 50.0, 51.0));
     eng.OnEvent(MakeQuote(104, InstrumentId::FutureB, 200.0, 201.0));
 
-    Require(log.str() == before, "SimEngine: expected no further logs after stop");
+    Require(tradeBuf == before, "SimEngine: expected no further logs after stop");
     PrintOk("SimulationEngine stop loss closes as trade and stops");
 }
 
@@ -205,8 +210,9 @@ void TestSimulationEngine_EndOfDayClose_Tagged()
     p.MaxAbsExposureLots = 10;
     p.StopLossPnl = -50.0;
 
-    std::ostringstream log;
-    SimulationEngine eng(Strategy(p), PnlTracker(), log);
+    std::string tradeBuf;
+    tradeBuf.reserve(1 << 20); // 1MB,
+    SimulationEngine eng(Strategy(p), PnlTracker(), tradeBuf);
 
     // Open position: BuyB
     eng.OnEvent(MakeQuote(100, InstrumentId::FutureA, 101.0, 102.0));
@@ -214,7 +220,7 @@ void TestSimulationEngine_EndOfDayClose_Tagged()
 
     eng.OnEndOfDay(200);
 
-    Require(CountSubstr(log.str(), "EOD_CLOSE") == 1, "SimEngine: expected EOD_CLOSE tag");
+    Require(CountSubstr(tradeBuf, "EOD_CLOSE") == 1, "SimEngine: expected EOD_CLOSE tag");
     PrintOk("SimulationEngine end-of-day close tagged");
 }
 
@@ -313,15 +319,16 @@ void TestSimulationEngine_SellBlocked_WhenBidSizeZero()
     p.MaxAbsExposureLots = 2;
     p.StopLossPnl = -50.0;
 
-    std::ostringstream log;
-    SimulationEngine eng(Strategy(p), PnlTracker(), log);
+    std::string tradeBuf;
+    tradeBuf.reserve(1 << 20); // 1MB,
+    SimulationEngine eng(Strategy(p), PnlTracker(), tradeBuf);
 
     // Force SellB signal: B_bid - A_ask >= 1
     eng.OnEvent(MakeQuote(100, InstrumentId::FutureA, 99.0, 100.0, 100, 100));
     // B_bid=101, but bidSize=0 => should not sell
     eng.OnEvent(MakeQuote(101, InstrumentId::FutureB, 101.0, 102.0, 0, 100));
 
-    Require(CountSubstr(log.str(), ",SELL,FutureB,1,") == 0, "Expected no SELL when bidSize is 0");
+    Require(CountSubstr(tradeBuf, ",SELL,FutureB,1,") == 0, "Expected no SELL when bidSize is 0");
     PrintOk("SimulationEngine blocks SellB when bidSize=0");
 }
 
