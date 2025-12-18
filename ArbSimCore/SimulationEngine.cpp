@@ -7,6 +7,11 @@ namespace ArbSim {
         : strategy_(std::move(strategy))
         , pnl_(std::move(pnl))
         , tradeLog_(tradeLogBuffer)
+        , lastQuoteA_{} // Ensure default initialization
+        , lastQuoteB_{} // Ensure default initialization
+        , stopTrading_(false)
+        , hasA_(false)
+        , hasB_(false)
     {
     }
 

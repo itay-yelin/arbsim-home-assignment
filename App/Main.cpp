@@ -1,5 +1,4 @@
 #include <iostream>
-#include <optional>
 #include <chrono>
 
 #include "Config.h"
