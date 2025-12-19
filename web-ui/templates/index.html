@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HFT ArbSim Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body { background-color: #0d0d12; color: #e0e0e0; font-family: 'Inter', sans-serif; }
+        .neon-border { border: 1px solid #333; box-shadow: 0 0 10px rgba(0, 255, 128, 0.05); }
+        .input-field { background: #1a1a20; border: 1px solid #333; color: white; padding: 8px; border-radius: 4px; width: 100%; }
+        .btn-primary { background: linear-gradient(90deg, #00f0ff, #00ff88); color: black; font-weight: bold; padding: 10px 20px; border-radius: 4px; text-transform: uppercase; cursor: pointer; transition: 0.2s; }
+        .btn-primary:hover { opacity: 0.9; transform: scale(1.02); }
+        .card { background: #13131a; border-radius: 8px; padding: 16px; border: 1px solid #222; }
+    </style>
+</head>
+<body class="h-screen flex flex-col overflow-hidden">
+
+    <!-- Header -->
+    <header class="h-16 border-b border-gray-800 flex items-center px-6 bg-[#13131a]">
+        <div class="text-xl font-bold tracking-widest text-[#00ff88]">ANTIGRAVITY <span class="text-white font-light">ArbSim</span></div>
+    </header>
+
+    <div class="flex flex-1 overflow-hidden">
+        <!-- Sidebar Controls -->
+        <aside class="w-80 bg-[#13131a] border-r border-gray-800 p-6 flex flex-col gap-6 overflow-y-auto">
+            
+            <div>
+                <h3 class="text-xs text-gray-400 uppercase tracking-wider mb-4">Strategy Parameters</h3>
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-sm text-gray-500 mb-1">Arbitrage Threshold (X)</label>
+                        <input type="number" id="inpX" class="input-field" value="1.5" step="0.1">
+                    </div>
+                    <div>
+                        <label class="block text-sm text-gray-500 mb-1">Max Exposure (Y)</label>
+                        <input type="number" id="inpY" class="input-field" value="10">
+                    </div>
+                    <div>
+                        <label class="block text-sm text-gray-500 mb-1">Stop Loss (Z)</label>
+                        <input type="number" id="inpZ" class="input-field" value="-5000">
+                    </div>
+                </div>
+            </div>
+
+            <button onclick="runSimulation()" class="btn-primary w-full shadow-[0_0_20px_rgba(0,255,136,0.3)]">
+                Run Simulation
+            </button>
+
+            <div id="statsPanel" class="hidden space-y-4 mt-4">
+                <div class="card bg-[#1a1a22]">
+                    <div class="text-xs text-gray-500">Total PNL</div>
+                    <div id="valTotalPnl" class="text-2xl font-mono font-bold text-white">--</div>
+                </div>
+                <div class="grid grid-cols-2 gap-2">
+                    <div class="card bg-[#1a1a22]">
+                        <div class="text-[10px] text-gray-500">Best PNL</div>
+                        <div id="valBestPnl" class="font-mono text-[#00ff88]">--</div>
+                    </div>
+                    <div class="card bg-[#1a1a22]">
+                        <div class="text-[10px] text-gray-500">Worst PNL</div>
+                        <div id="valWorstPnl" class="font-mono text-red-500">--</div>
+                    </div>
+                </div>
+                <div class="card bg-[#1a1a22]">
+                    <div class="text-xs text-gray-500">Max Exposure</div>
+                    <div id="valExposure" class="text-xl font-mono text-blue-400">--</div>
+                </div>
+                 <div class="card bg-[#1a1a22]">
+                    <div class="text-xs text-gray-500">Volume</div>
+                    <div id="valVolume" class="text-xl font-mono text-gray-300">--</div>
+                </div>
+            </div>
+
+        </aside>
+
+        <!-- Main Content -->
+        <main class="flex-1 flex flex-col p-6 gap-6 overflow-y-auto bg-[#0d0d12]">
+            
+            <!-- Charts -->
+            <div class="card h-1/2 flex flex-col relative">
+                <h3 class="text-xs text-gray-400 uppercase tracking-wider mb-2 absolute top-4 left-4">Real-Time PNL & Market</h3>
+                <div class="flex-1 w-full h-full pt-6">
+                    <canvas id="mainChart"></canvas>
+                </div>
+            </div>
+
+            <!-- Trade Log -->
+            <div class="card flex-1 flex flex-col overflow-hidden">
+                <h3 class="text-xs text-gray-400 uppercase tracking-wider mb-2">Execution Log</h3>
+                <div class="flex-1 overflow-y-auto">
+                    <table class="w-full text-left border-collapse text-sm font-mono">
+                        <thead class="text-gray-500 sticky top-0 bg-[#13131a]">
+                            <tr>
+                                <th class="p-2 border-b border-gray-800">Time</th>
+                                <th class="p-2 border-b border-gray-800">Side</th>
+                                <th class="p-2 border-b border-gray-800">Inst</th>
+                                <th class="p-2 border-b border-gray-800">Qty</th>
+                                <th class="p-2 border-b border-gray-800">Price</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tradeLogBody" class="text-gray-300">
+                            <!-- Rows -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+        </main>
+    </div>
+
+    <script>
+        let chartInstance = null;
+
+        async function runSimulation() {
+            const btn = document.querySelector('button');
+            const originalText = btn.innerText;
+            btn.innerText = "SIMULATING...";
+            btn.disabled = true;
+
+            const x = parseFloat(document.getElementById('inpX').value);
+            const y = parseInt(document.getElementById('inpY').value);
+            const z = parseFloat(document.getElementById('inpZ').value);
+
+            try {
+                const res = await fetch('/api/run', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ x, y, z })
+                });
+                const data = await res.json();
+
+                if (data.success) {
+                    renderStats(data.summary);
+                    renderTrades(data.trades);
+                    renderChart(data.chart);
+                    document.getElementById('statsPanel').classList.remove('hidden');
+                } else {
+                    alert("Error: " + data.error);
+                }
+
+            } catch (e) {
+                console.error(e);
+                alert("Network error");
+            } finally {
+                btn.innerText = originalText;
+                btn.disabled = false;
+            }
+        }
+
+        function renderStats(s) {
+            document.getElementById('valTotalPnl').innerText = s.total_pnl.toFixed(2);
+            document.getElementById('valBestPnl').innerText = s.best_pnl.toFixed(2);
+            document.getElementById('valWorstPnl').innerText = s.worst_pnl.toFixed(2);
+            document.getElementById('valExposure').innerText = s.max_exposure;
+            document.getElementById('valVolume').innerText = s.traded_lots;
+        }
+
+        function renderTrades(trades) {
+            const tbody = document.getElementById('tradeLogBody');
+            tbody.innerHTML = '';
+            // Show last 1000 trades max to avoid DOM freeze
+            const limit = trades.slice(0, 500); 
+            
+            limit.forEach(t => {
+                const tr = document.createElement('tr');
+                const isBuy = t.side === 'BUY';
+                const color = isBuy ? 'text-[#00ff88]' : 'text-red-500';
+                
+                // Format Timestamp (ns to HH:MM:SS)
+                // Assuming timestamp is epoch ns... 
+                // JS Date takes ms.
+                const date = new Date(t.time / 1000000); 
+                const timeStr = date.toISOString().split('T')[1].replace('Z','');
+
+                tr.innerHTML = `
+                    <td class="p-2 border-b border-gray-800 text-gray-500">${timeStr}</td>
+                    <td class="p-2 border-b border-gray-800 ${color}">${t.side}</td>
+                    <td class="p-2 border-b border-gray-800">FutureB</td>
+                    <td class="p-2 border-b border-gray-800">${t.qty}</td>
+                    <td class="p-2 border-b border-gray-800">${t.price.toFixed(1)}</td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        function renderChart(dataPoints) {
+            const ctx = document.getElementById('mainChart').getContext('2d');
+            
+            // Decimate for performance if needed
+            const points = dataPoints; 
+
+            const labels = points.map(p => {
+                const d = new Date(p.time / 1000000);
+                return d.toISOString().split('T')[1].slice(0, 5); // HH:MM
+            });
+            const pnlData = points.map(p => p.pnl);
+            const priceB = points.map(p => p.priceB);
+
+            if (chartInstance) chartInstance.destroy();
+
+            chartInstance = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [
+                        {
+                            label: 'PNL ($)',
+                            data: pnlData,
+                            borderColor: '#00fa9a',
+                            backgroundColor: 'rgba(0, 250, 154, 0.1)',
+                            borderWidth: 2,
+                            yAxisID: 'y',
+                            pointRadius: 0,
+                            fill: true,
+                            tension: 0.1
+                        },
+                        {
+                            label: 'Future B Price',
+                            data: priceB,
+                            borderColor: '#00d2ff',
+                            borderWidth: 1,
+                            yAxisID: 'y1',
+                            pointRadius: 0,
+                            tension: 0.1
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    interaction: {
+                        mode: 'index',
+                        intersect: false,
+                    },
+                    plugins: {
+                        legend: { labels: { color: '#ccc' } }
+                    },
+                    scales: {
+                        x: {
+                            ticks: { color: '#666', maxTicksLimit: 10 },
+                            grid: { color: '#222' }
+                        },
+                        y: {
+                            type: 'linear',
+                            display: true,
+                            position: 'left',
+                            ticks: { color: '#00fa9a' },
+                            grid: { color: '#222' }
+                        },
+                        y1: {
+                            type: 'linear',
+                            display: true,
+                            position: 'right',
+                            grid: { drawOnChartArea: false },
+                            ticks: { color: '#00d2ff' }
+                        }
+                    }
+                }
+            });
+        }
+    </script>
+</body>
+</html>
