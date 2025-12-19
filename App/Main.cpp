@@ -62,11 +62,24 @@ int main()
         const auto t_loop0 = Clock::now();
 
 
+        long long nextPrintTime = 0;
+        const long long printInterval = 60000000000LL; // 60 seconds * 1e9
+
         while (merger.ReadNext(ev))
         {
             const auto t0 = Clock::now();
             engine.OnEvent(ev);
             const auto t1 = Clock::now();
+
+            if (ev.sendingTime >= nextPrintTime)
+            {
+               if (nextPrintTime != 0) // Skip first 0
+               {
+                   // Print PNL Snapshot: TIME,PNL_TAG,TotalPnl,MidPriceB
+                   std::cout << ev.sendingTime << ",PNL," << engine.GetTotalPnl() << "," << engine.GetLastMidB() << "\n";
+               }
+               nextPrintTime = ev.sendingTime + printInterval;
+            }
 
             onEventMsSum += Ms(t0, t1);
             ++events;

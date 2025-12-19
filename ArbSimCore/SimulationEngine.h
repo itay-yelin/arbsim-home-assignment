@@ -33,6 +33,10 @@ namespace ArbSim {
         bool IsStopped() const { 
             return stopTrading_; 
         }
+
+        double GetTotalPnl() const { return pnl_.GetTotalPnl(); }
+        double GetLastMidB() const { return pnl_.GetLastMidB(); }
+
         
     private:
         Strategy strategy_;

@@ -15,10 +15,23 @@ CONFIG_PATH = os.path.join(PROJECT_ROOT, 'config.cfg')
 def index():
     return render_template('index.html')
 
+def load_config():
+    cfg = {}
+    if os.path.exists(CONFIG_PATH):
+        with open(CONFIG_PATH, 'r') as f:
+            for line in f:
+                if '=' in line:
+                    key, val = line.strip().split('=', 1)
+                    cfg[key] = val
+    return cfg
+
 def update_config(x, y, z):
-    # Determine absolute paths for data files to ensure App.exe finds them
-    future_a = os.path.join(DATA_DIR, 'futureA.csv').replace('\\', '/')
-    future_b = os.path.join(DATA_DIR, 'futureB.csv').replace('\\', '/')
+    # Load existing to preserve paths
+    cfg = load_config()
+    
+    # Default paths if missing
+    future_a = cfg.get('Data.FutureA', os.path.join(DATA_DIR, 'futureA.csv').replace('\\', '/'))
+    future_b = cfg.get('Data.FutureB', os.path.join(DATA_DIR, 'futureB.csv').replace('\\', '/'))
     
     config_content = f"""Data.FutureA={future_a}
 Data.FutureB={future_b}
@@ -29,12 +42,27 @@ Strategy.StopLossPnl={z}
     with open(CONFIG_PATH, 'w') as f:
         f.write(config_content)
 
-def parse_trades(stdout_data):
+@app.route('/api/config', methods=['GET'])
+def get_config():
+    cfg = load_config()
+    return jsonify({
+        'x': float(cfg.get('Strategy.MinArbitrageEdge', 1.5)),
+        'y': int(cfg.get('Strategy.MaxAbsExposureLots', 10)),
+        'z': float(cfg.get('Strategy.StopLossPnl', -5000)),
+        'fileA': cfg.get('Data.FutureA', ''),
+        'fileB': cfg.get('Data.FutureB', '')
+    })
+
+# ... existing parsing logic ...
+
+
+
+def parse_trades_and_pnl(stdout_data):
     trades = []
+    chart_data = []
     lines = stdout_data.splitlines()
     summary = {}
     
-    # Simple parse
     for line in lines:
         line = line.strip()
         if not line: continue
@@ -56,134 +84,37 @@ def parse_trades(stdout_data):
             summary['traded_lots'] = int(line.split(':')[1])
             continue
             
+        # PNL Snapshot: TIME,PNL,TotalPnl,MidPriceB
+        if ",PNL," in line:
+            parts = line.split(',')
+            if len(parts) >= 4:
+                try:
+                    chart_data.append({
+                        'time': int(parts[0]),
+                        'pnl': float(parts[2]),
+                        'priceB': float(parts[3])
+                    })
+                except ValueError:
+                    pass
+            continue
+
         # Parse Trade CSV line: time,Side,Inst,Qty,Price
         # Example: 1544166006144506979,BUY,FutureB,1,10928.5
-        parts = line.split(',')
-        if len(parts) >= 5 and parts[2] == 'FutureB':
-            try:
-                trade = {
-                    'time': int(parts[0]),
-                    'side': parts[1],
-                    'price': float(parts[4]),
-                    'qty': int(parts[3])
-                }
-                trades.append(trade)
-            except ValueError:
-                pass
-                
-    return trades, summary
-
-def replay_data(trades):
-    # Generator to read CSVs
-    def csv_reader(filepath, inst_id):
-        with open(filepath, 'r') as f:
-            reader = csv.reader(f)
-            # Skip header if present? Assuming no header or handled.
-            # Sample: 1544166006144506979,FutureA,2,1,10928,10928.5,1
-            for row in reader:
-                if len(row) < 6: continue
-                # event: time, inst, bid, ask
+        if ",FutureB," in line:
+            parts = line.split(',')
+            if len(parts) >= 5:
                 try:
-                    yield {
-                        't': int(row[0]),
-                        'inst': inst_id,
-                        'bid': float(row[4]),
-                        'ask': float(row[5])
+                    trade = {
+                        'time': int(parts[0]),
+                        'side': parts[1],
+                        'price': float(parts[4]),
+                        'qty': int(parts[3])
                     }
+                    trades.append(trade)
                 except ValueError:
-                    continue
-
-    # Load all trades into a dict key=time for fast lookup or just iterate?
-    # Trades are sorted by time.
-    trade_idx = 0
-    num_trades = len(trades)
-    
-    # State
-    position = 0
-    cash = 0.0
-    
-    # We want to sample output every 1 minute (60 * 1e9 ns? No, timestamp seems to be ns)
-    # 1544166006144506979 -> 1.54e18. 
-    # 1 sec = 1,000,000,000 ns.
-    SAMPLE_INTERVAL = 60 * 1_000_000_000 # 1 minute
-    last_sample_time = 0
-    
-    chart_data = []
-    
-    # Stream Merger
-    gen_a = csv_reader(os.path.join(DATA_DIR, 'futureA.csv'), 'A')
-    gen_b = csv_reader(os.path.join(DATA_DIR, 'futureB.csv'), 'B')
-    
-    curr_a = next(gen_a, None)
-    curr_b = next(gen_b, None)
-    
-    last_price_a = 0
-    last_price_b = 0
-    
-    while curr_a or curr_b:
-        # Determine next event
-        if curr_a and curr_b:
-            if curr_a['t'] < curr_b['t']:
-                ev = curr_a
-                curr_a = next(gen_a, None)
-            else:
-                ev = curr_b
-                curr_b = next(gen_b, None)
-        elif curr_a:
-            ev = curr_a
-            curr_a = next(gen_a, None)
-        else:
-            ev = curr_b
-            curr_b = next(gen_b, None)
-            
-        t = ev['t']
-        
-        # Update Prices
-        if ev['inst'] == 'A':
-            last_price_a = (ev['bid'] + ev['ask']) / 2
-        else:
-            last_price_b = (ev['bid'] + ev['ask']) / 2
-            
-            # Process Trades at this exact timestamp (approx)
-            # Since trade timestamp matches market data timestamp exactly in simulation
-            while trade_idx < num_trades and trades[trade_idx]['time'] <= t:
-                tr = trades[trade_idx]
-                qty = tr['qty']
-                price = tr['price']
-                if tr['side'] == 'BUY':
-                    position += qty
-                    cash -= (qty * price)
-                else:
-                    position -= qty
-                    cash += (qty * price)
-                trade_idx += 1
-        
-        # Sample
-        if last_sample_time == 0:
-            last_sample_time = t
-            
-        if t - last_sample_time >= SAMPLE_INTERVAL:
-            # Calculate PNL
-            # Unrealized = Position * MidB
-            # Total = Cash + Unrealized
-            if last_price_b > 0:
-                unrealized = position * last_price_b
-                total_pnl = cash + unrealized
+                    pass
                 
-                chart_data.append({
-                    'time': t,
-                    'priceA': last_price_a,
-                    'priceB': last_price_b,
-                    'pnl': total_pnl,
-                    'pos': position
-                })
-            last_sample_time = t
-            
-            # Limit points to avoid huge JSON? 
-            # If day is long, 1 min might be too much?
-            # 1 day = 1440 mins. That is small. 
-            
-    return chart_data
+    return trades, summary, chart_data
 
 @app.route('/api/run', methods=['POST'])
 def run_simulation():
@@ -203,10 +134,7 @@ def run_simulation():
             text=True
         )
         
-        trades, summary = parse_trades(result.stdout)
-        
-        # Replay to get charts
-        chart_data = replay_data(trades)
+        trades, summary, chart_data = parse_trades_and_pnl(result.stdout)
         
         return jsonify({
             'success': True,

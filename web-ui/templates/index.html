@@ -57,8 +57,7 @@
 
     <!-- Header -->
     <header class="h-16 border-b border-gray-800 flex items-center px-6 bg-[#13131a]">
-        <div class="text-xl font-bold tracking-widest text-[#00ff88]">ANTIGRAVITY <span
-                class="text-white font-light">Arbitrage Simulation</span></div>
+        <div class="text-xl font-bold tracking-widest text-[#00ff88]">Arbitrage Simulation</div>
     </header>
 
     <div class="flex flex-1 overflow-hidden">
@@ -67,13 +66,16 @@
 
             <div class="space-y-4">
                 <h3 class="text-xs text-gray-400 uppercase tracking-wider">Data Source</h3>
+                <div class="text-xs text-gray-500 italic mb-2">Current: <span id="lblFileA">...</span></div>
                 <div class="space-y-2">
-                    <label class="block text-sm text-gray-500">Future A (Prominent)</label>
+                    <label class="block text-sm text-gray-500">Override Future A</label>
                     <input type="file" id="fileA"
                         class="block w-full text-xs text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:text-xs file:font-semibold file:bg-[#1a1a20] file:text-[#00ff88] hover:file:bg-[#222]">
                 </div>
+
+                <div class="text-xs text-gray-500 italic mb-2 mt-2">Current: <span id="lblFileB">...</span></div>
                 <div class="space-y-2">
-                    <label class="block text-sm text-gray-500">Future B</label>
+                    <label class="block text-sm text-gray-500">Override Future B</label>
                     <input type="file" id="fileB"
                         class="block w-full text-xs text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:text-xs file:font-semibold file:bg-[#1a1a20] file:text-[#00ff88] hover:file:bg-[#222]">
                 </div>
@@ -89,15 +91,15 @@
                 <div class="space-y-4">
                     <div>
                         <label class="block text-sm text-gray-500 mb-1">Arbitrage Threshold (X)</label>
-                        <input type="number" id="inpX" class="input-field" value="1.5" step="0.1">
+                        <input type="number" id="inpX" class="input-field" step="0.1">
                     </div>
                     <div>
                         <label class="block text-sm text-gray-500 mb-1">Max Exposure (Y)</label>
-                        <input type="number" id="inpY" class="input-field" value="10">
+                        <input type="number" id="inpY" class="input-field">
                     </div>
                     <div>
                         <label class="block text-sm text-gray-500 mb-1">Stop Loss (Z)</label>
-                        <input type="number" id="inpZ" class="input-field" value="-5000">
+                        <input type="number" id="inpZ" class="input-field">
                     </div>
                 </div>
             </div>
@@ -171,6 +173,28 @@
 
     <script>
         let chartInstance = null;
+
+        // Init on load
+        window.addEventListener('DOMContentLoaded', async () => {
+            try {
+                const res = await fetch('/api/config');
+                const cfg = await res.json();
+
+                document.getElementById('inpX').value = cfg.x;
+                document.getElementById('inpY').value = cfg.y;
+                document.getElementById('inpZ').value = cfg.z;
+
+                // Show basename of current files
+                const fa = cfg.fileA.replace(/\\/g, '/').split('/').pop();
+                const fb = cfg.fileB.replace(/\\/g, '/').split('/').pop();
+
+                document.getElementById('lblFileA').innerText = fa || 'Not Set';
+                document.getElementById('lblFileB').innerText = fb || 'Not Set';
+
+            } catch (e) {
+                console.error("Failed to load config", e);
+            }
+        });
 
         async function runSimulation() {
             const btn = document.querySelector('button');
