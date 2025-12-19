@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en" class="dark">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -7,25 +8,82 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
-        body { background-color: #0d0d12; color: #e0e0e0; font-family: 'Inter', sans-serif; }
-        .neon-border { border: 1px solid #333; box-shadow: 0 0 10px rgba(0, 255, 128, 0.05); }
-        .input-field { background: #1a1a20; border: 1px solid #333; color: white; padding: 8px; border-radius: 4px; width: 100%; }
-        .btn-primary { background: linear-gradient(90deg, #00f0ff, #00ff88); color: black; font-weight: bold; padding: 10px 20px; border-radius: 4px; text-transform: uppercase; cursor: pointer; transition: 0.2s; }
-        .btn-primary:hover { opacity: 0.9; transform: scale(1.02); }
-        .card { background: #13131a; border-radius: 8px; padding: 16px; border: 1px solid #222; }
+        body {
+            background-color: #0d0d12;
+            color: #e0e0e0;
+            font-family: 'Inter', sans-serif;
+        }
+
+        .neon-border {
+            border: 1px solid #333;
+            box-shadow: 0 0 10px rgba(0, 255, 128, 0.05);
+        }
+
+        .input-field {
+            background: #1a1a20;
+            border: 1px solid #333;
+            color: white;
+            padding: 8px;
+            border-radius: 4px;
+            width: 100%;
+        }
+
+        .btn-primary {
+            background: linear-gradient(90deg, #00f0ff, #00ff88);
+            color: black;
+            font-weight: bold;
+            padding: 10px 20px;
+            border-radius: 4px;
+            text-transform: uppercase;
+            cursor: pointer;
+            transition: 0.2s;
+        }
+
+        .btn-primary:hover {
+            opacity: 0.9;
+            transform: scale(1.02);
+        }
+
+        .card {
+            background: #13131a;
+            border-radius: 8px;
+            padding: 16px;
+            border: 1px solid #222;
+        }
     </style>
 </head>
+
 <body class="h-screen flex flex-col overflow-hidden">
 
     <!-- Header -->
     <header class="h-16 border-b border-gray-800 flex items-center px-6 bg-[#13131a]">
-        <div class="text-xl font-bold tracking-widest text-[#00ff88]">ANTIGRAVITY <span class="text-white font-light">ArbSim</span></div>
+        <div class="text-xl font-bold tracking-widest text-[#00ff88]">ANTIGRAVITY <span
+                class="text-white font-light">Arbitrage Simulation</span></div>
     </header>
 
     <div class="flex flex-1 overflow-hidden">
         <!-- Sidebar Controls -->
         <aside class="w-80 bg-[#13131a] border-r border-gray-800 p-6 flex flex-col gap-6 overflow-y-auto">
-            
+
+            <div class="space-y-4">
+                <h3 class="text-xs text-gray-400 uppercase tracking-wider">Data Source</h3>
+                <div class="space-y-2">
+                    <label class="block text-sm text-gray-500">Future A (Prominent)</label>
+                    <input type="file" id="fileA"
+                        class="block w-full text-xs text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:text-xs file:font-semibold file:bg-[#1a1a20] file:text-[#00ff88] hover:file:bg-[#222]">
+                </div>
+                <div class="space-y-2">
+                    <label class="block text-sm text-gray-500">Future B</label>
+                    <input type="file" id="fileB"
+                        class="block w-full text-xs text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:text-xs file:font-semibold file:bg-[#1a1a20] file:text-[#00ff88] hover:file:bg-[#222]">
+                </div>
+                <button onclick="uploadFiles()" id="btnUpload"
+                    class="text-xs bg-[#222] text-gray-300 px-3 py-1 rounded hover:text-white border border-gray-700">Update
+                    Data</button>
+            </div>
+
+            <hr class="border-gray-800" />
+
             <div>
                 <h3 class="text-xs text-gray-400 uppercase tracking-wider mb-4">Strategy Parameters</h3>
                 <div class="space-y-4">
@@ -67,7 +125,7 @@
                     <div class="text-xs text-gray-500">Max Exposure</div>
                     <div id="valExposure" class="text-xl font-mono text-blue-400">--</div>
                 </div>
-                 <div class="card bg-[#1a1a22]">
+                <div class="card bg-[#1a1a22]">
                     <div class="text-xs text-gray-500">Volume</div>
                     <div id="valVolume" class="text-xl font-mono text-gray-300">--</div>
                 </div>
@@ -77,10 +135,11 @@
 
         <!-- Main Content -->
         <main class="flex-1 flex flex-col p-6 gap-6 overflow-y-auto bg-[#0d0d12]">
-            
+
             <!-- Charts -->
             <div class="card h-1/2 flex flex-col relative">
-                <h3 class="text-xs text-gray-400 uppercase tracking-wider mb-2 absolute top-4 left-4">Real-Time PNL & Market</h3>
+                <h3 class="text-xs text-gray-400 uppercase tracking-wider mb-2 absolute top-4 left-4">Real-Time PNL &
+                    Market</h3>
                 <div class="flex-1 w-full h-full pt-6">
                     <canvas id="mainChart"></canvas>
                 </div>
@@ -126,7 +185,7 @@
             try {
                 const res = await fetch('/api/run', {
                     method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
+                    headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ x, y, z })
                 });
                 const data = await res.json();
@@ -149,6 +208,43 @@
             }
         }
 
+        async function uploadFiles() {
+            const fA = document.getElementById('fileA').files[0];
+            const fB = document.getElementById('fileB').files[0];
+
+            if (!fA && !fB) {
+                alert("Please select at least one file.");
+                return;
+            }
+
+            const btn = document.getElementById('btnUpload');
+            const originalText = btn.innerText;
+            btn.innerText = "Uploading...";
+            btn.disabled = true;
+
+            const formData = new FormData();
+            if (fA) formData.append('futureA', fA);
+            if (fB) formData.append('futureB', fB);
+
+            try {
+                const res = await fetch('/api/upload', {
+                    method: 'POST',
+                    body: formData
+                });
+                const data = await res.json();
+                if (data.success) {
+                    alert("Files uploaded successfully!");
+                } else {
+                    alert("Upload failed: " + data.error);
+                }
+            } catch (e) {
+                alert("Network error");
+            } finally {
+                btn.innerText = originalText;
+                btn.disabled = false;
+            }
+        }
+
         function renderStats(s) {
             document.getElementById('valTotalPnl').innerText = s.total_pnl.toFixed(2);
             document.getElementById('valBestPnl').innerText = s.best_pnl.toFixed(2);
@@ -161,18 +257,18 @@
             const tbody = document.getElementById('tradeLogBody');
             tbody.innerHTML = '';
             // Show last 1000 trades max to avoid DOM freeze
-            const limit = trades.slice(0, 500); 
-            
+            const limit = trades.slice(0, 500);
+
             limit.forEach(t => {
                 const tr = document.createElement('tr');
                 const isBuy = t.side === 'BUY';
                 const color = isBuy ? 'text-[#00ff88]' : 'text-red-500';
-                
+
                 // Format Timestamp (ns to HH:MM:SS)
                 // Assuming timestamp is epoch ns... 
                 // JS Date takes ms.
-                const date = new Date(t.time / 1000000); 
-                const timeStr = date.toISOString().split('T')[1].replace('Z','');
+                const date = new Date(t.time / 1000000);
+                const timeStr = date.toISOString().split('T')[1].replace('Z', '');
 
                 tr.innerHTML = `
                     <td class="p-2 border-b border-gray-800 text-gray-500">${timeStr}</td>
@@ -187,9 +283,9 @@
 
         function renderChart(dataPoints) {
             const ctx = document.getElementById('mainChart').getContext('2d');
-            
+
             // Decimate for performance if needed
-            const points = dataPoints; 
+            const points = dataPoints;
 
             const labels = points.map(p => {
                 const d = new Date(p.time / 1000000);
@@ -262,4 +358,5 @@
         }
     </script>
 </body>
+
 </html>

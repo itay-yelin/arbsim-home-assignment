@@ -217,5 +217,22 @@ def run_simulation():
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
 
+@app.route('/api/upload', methods=['POST'])
+def upload_files():
+    try:
+        if 'futureA' in request.files:
+            fa = request.files['futureA']
+            if fa.filename != '':
+                fa.save(os.path.join(DATA_DIR, 'futureA.csv'))
+        
+        if 'futureB' in request.files:
+            fb = request.files['futureB']
+            if fb.filename != '':
+                fb.save(os.path.join(DATA_DIR, 'futureB.csv'))
+                
+        return jsonify({'success': True})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
 if __name__ == '__main__':
     app.run(port=5000)
