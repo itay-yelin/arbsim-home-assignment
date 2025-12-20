@@ -25,9 +25,8 @@ Release/
 
 # Python
 __pycache__/
-*.py[cod]
-*$py.class
-venv/
+*.pyc
+.venv/
 env/
 
 # PyInstaller
@@ -36,3 +35,15 @@ build/
 dist/
 *.zip
 ArbSim_Release/
+
+# Visual Studio / Build
+.vs/
+out/
+bin/
+*.slnx
+*.filters
+*.vcxproj.user
+*.obj
+*.pdb
+*.exe
+

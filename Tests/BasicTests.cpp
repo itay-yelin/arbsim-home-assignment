@@ -6,15 +6,17 @@
 #include <sstream>
 #include <fstream>
 #include <cstdio>   // std::remove
+#include <vector>
+#include <cassert>
 
 #include <windows.h>
 
-#include "CsvReader.h"
-#include "StreamMerger.h"
-#include "MarketData.h"
-#include "PnlTracker.h"
-#include "Strategy.h"
-#include "SimulationEngine.h"
+#include "../src/core/CsvReader.h"
+#include "../src/core/StreamMerger.h"
+#include "../src/core/MarketData.h"
+#include "../src/core/PnlTracker.h"
+#include "../src/core/Strategy.h"
+#include "../src/core/SimulationEngine.h"
 
 using namespace ArbSim;
 

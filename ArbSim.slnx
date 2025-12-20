@@ -1,9 +1,0 @@
-<Solution>
-  <Configurations>
-    <Platform Name="x64" />
-    <Platform Name="x86" />
-  </Configurations>
-  <Project Path="App/App.vcxproj" Id="05e665ca-9491-4342-a71a-db28190beae2" />
-  <Project Path="ArbSimCore/ArbSimCore.vcxproj" Id="8407956a-8c11-40e0-9510-ed8767565763" />
-  <Project Path="Tests/Tests.vcxproj" Id="5d51b105-a00a-438f-963e-75c15cf1ba37" />
-</Solution>
