@@ -36,6 +36,7 @@ namespace ArbSim {
 
         double GetTotalPnl() const { return pnl_.GetTotalPnl(); }
         double GetLastMidB() const { return pnl_.GetLastMidB(); }
+        double GetLastMidA() const { return (lastQuoteA_.bid + lastQuoteA_.ask) * 0.5; }
 
         
     private:

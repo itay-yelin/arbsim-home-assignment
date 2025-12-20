@@ -76,8 +76,8 @@ int main()
             {
                if (nextPrintTime != 0) // Skip first 0
                {
-                   // Print PNL Snapshot: TIME,PNL_TAG,TotalPnl,MidPriceB
-                   std::cout << ev.sendingTime << ",PNL," << engine.GetTotalPnl() << "," << engine.GetLastMidB() << "\n";
+                   // Print PNL Snapshot: TIME,PNL,TotalPnl,MidPriceB,MidPriceA
+                   std::cout << ev.sendingTime << ",PNL," << engine.GetTotalPnl() << "," << engine.GetLastMidB() << "," << engine.GetLastMidA() << "\n";
                }
                nextPrintTime = ev.sendingTime + printInterval;
             }
