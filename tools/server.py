@@ -10,18 +10,25 @@ import sys
 if getattr(sys, 'frozen', False):
     # Bundle Dir is the temp folder where PyInstaller extracts files
     BUNDLE_DIR = sys._MEIPASS
-    # App.exe is bundled at the root of the temp folder
-    EXE_PATH = os.path.join(BUNDLE_DIR, 'App.exe')
+    TEMPLATE_DIR = os.path.join(BUNDLE_DIR, 'templates')
+    STATIC_DIR = os.path.join(BUNDLE_DIR, 'static')
+    EXE_PATH = os.path.join(BUNDLE_DIR, 'ArbSim.exe')
 else:
-    # Script mode: web-ui/server.py
-    BUNDLE_DIR = os.path.dirname(os.path.abspath(__file__))
-    # App.exe is in ../x64/Release/App.exe
-    EXE_PATH = os.path.join(os.path.dirname(BUNDLE_DIR), 'x64', 'Release', 'App.exe')
+    # Script mode: tools/server.py -> ../web/
+    TOOLS_DIR = os.path.dirname(os.path.abspath(__file__))
+    PROJECT_ROOT = os.path.dirname(TOOLS_DIR)
+    
+    TEMPLATE_DIR = os.path.join(PROJECT_ROOT, 'web', 'templates')
+    STATIC_DIR = os.path.join(PROJECT_ROOT, 'web', 'static')
+    
+    # App.exe is usually in build/Release
+    # (Exe path resolution happens later, but we init vars here)
+    pass
 
 # Flask setup with explicit folders
 app = Flask(__name__, 
-            static_folder=os.path.join(BUNDLE_DIR, 'static'), 
-            template_folder=os.path.join(BUNDLE_DIR, 'templates'))
+            static_folder=STATIC_DIR, 
+            template_folder=TEMPLATE_DIR)
 
 
 import argparse
