@@ -4,11 +4,28 @@ import subprocess
 import json
 from flask import Flask, request, jsonify, render_template
 
-app = Flask(__name__, static_folder='static', template_folder='templates')
+import sys
 
-PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+# Determine paths for frozen (exe) vs script mode
+if getattr(sys, 'frozen', False):
+    # Bundle Dir is the temp folder where PyInstaller extracts files
+    BUNDLE_DIR = sys._MEIPASS
+    # App.exe is bundled at the root of the temp folder
+    EXE_PATH = os.path.join(BUNDLE_DIR, 'App.exe')
+else:
+    # Script mode: web-ui/server.py
+    BUNDLE_DIR = os.path.dirname(os.path.abspath(__file__))
+    # App.exe is in ../x64/Release/App.exe
+    EXE_PATH = os.path.join(os.path.dirname(BUNDLE_DIR), 'x64', 'Release', 'App.exe')
+
+# Flask setup with explicit folders
+app = Flask(__name__, 
+            static_folder=os.path.join(BUNDLE_DIR, 'static'), 
+            template_folder=os.path.join(BUNDLE_DIR, 'templates'))
+
+# Config and Data remain in the current working directory (where the user runs the exe)
+PROJECT_ROOT = os.getcwd() 
 DATA_DIR = os.path.join(PROJECT_ROOT, 'data')
-EXE_PATH = os.path.join(PROJECT_ROOT, 'x64', 'Release', 'App.exe')
 CONFIG_PATH = os.path.join(PROJECT_ROOT, 'config.cfg')
 
 @app.route('/')

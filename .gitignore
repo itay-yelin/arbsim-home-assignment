@@ -22,3 +22,17 @@ Release/
 
 # CSV data (local)
 *.csv
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+env/
+
+# PyInstaller
+*.spec
+build/
+dist/
+*.zip
+ArbSim_Release/
