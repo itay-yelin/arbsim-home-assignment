@@ -24,23 +24,39 @@ app = Flask(__name__,
             template_folder=os.path.join(BUNDLE_DIR, 'templates'))
 
 
+import argparse
+
 # Config and Data paths
 PROJECT_ROOT = os.getcwd() 
 DATA_DIR = os.path.join(PROJECT_ROOT, 'data')
 CONFIG_PATH = os.path.join(PROJECT_ROOT, 'config', 'config.cfg')
 
-# EXE Path: Try standard build locations (VS/CMake)
+# Argument Parsing
+parser = argparse.ArgumentParser(description='ArbSim Dashboard Server')
+parser.add_argument('--exe', type=str, help='Path to ArbSim executable')
+args, unknown = parser.parse_known_args()
+
+# EXE Path Resolution Priority:
+# 1. CLI Argument (--exe)
+# 2. Environment Variable (ARBSIM_EXE)
+# 3. Frozen (PyInstaller)
+# 4. Standard Build Locations
+
 POSSIBLE_EXES = [
-    # Legacy/Manual
-    os.path.join(PROJECT_ROOT, 'x64', 'Release', 'App.exe'),
     # CMake (Default)
     os.path.join(PROJECT_ROOT, 'build', 'Release', 'ArbSim.exe'),
-    os.path.join(PROJECT_ROOT, 'build', 'src', 'app', 'Release', 'ArbSim.exe'),
+    # VS
+    os.path.join(PROJECT_ROOT, 'x64', 'Release', 'App.exe'),
     os.path.join(PROJECT_ROOT, 'build', 'Debug', 'ArbSim.exe')
 ]
 
 EXE_PATH = None
-if getattr(sys, 'frozen', False):
+
+if args.exe:
+    EXE_PATH = args.exe
+elif os.environ.get('ARBSIM_EXE'):
+    EXE_PATH = os.environ['ARBSIM_EXE']
+elif getattr(sys, 'frozen', False):
     EXE_PATH = os.path.join(sys._MEIPASS, 'ArbSim.exe')
 else:
     for p in POSSIBLE_EXES:
@@ -49,8 +65,9 @@ else:
             break
     
     if not EXE_PATH:
-        # Fallback to looking in current directory
-        EXE_PATH = 'ArbSim.exe'
+        EXE_PATH = 'ArbSim.exe' # Fallback to PATH or current dir
+
+print(f"Using Executable: {EXE_PATH}")
 
 @app.route('/')
 def index():
