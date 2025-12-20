@@ -23,10 +23,34 @@ app = Flask(__name__,
             static_folder=os.path.join(BUNDLE_DIR, 'static'), 
             template_folder=os.path.join(BUNDLE_DIR, 'templates'))
 
-# Config and Data remain in the current working directory (where the user runs the exe)
+
+# Config and Data paths
 PROJECT_ROOT = os.getcwd() 
 DATA_DIR = os.path.join(PROJECT_ROOT, 'data')
-CONFIG_PATH = os.path.join(PROJECT_ROOT, 'config.cfg')
+CONFIG_PATH = os.path.join(PROJECT_ROOT, 'config', 'config.cfg')
+
+# EXE Path: Try standard build locations (VS/CMake)
+POSSIBLE_EXES = [
+    # Legacy/Manual
+    os.path.join(PROJECT_ROOT, 'x64', 'Release', 'App.exe'),
+    # CMake (Default)
+    os.path.join(PROJECT_ROOT, 'build', 'Release', 'ArbSim.exe'),
+    os.path.join(PROJECT_ROOT, 'build', 'src', 'app', 'Release', 'ArbSim.exe'),
+    os.path.join(PROJECT_ROOT, 'build', 'Debug', 'ArbSim.exe')
+]
+
+EXE_PATH = None
+if getattr(sys, 'frozen', False):
+    EXE_PATH = os.path.join(sys._MEIPASS, 'ArbSim.exe')
+else:
+    for p in POSSIBLE_EXES:
+        if os.path.exists(p):
+            EXE_PATH = p
+            break
+    
+    if not EXE_PATH:
+        # Fallback to looking in current directory
+        EXE_PATH = 'ArbSim.exe'
 
 @app.route('/')
 def index():

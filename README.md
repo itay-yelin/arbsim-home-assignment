@@ -4,38 +4,46 @@ A C++ based HFT simulation engine with a modern Web-based Dashboard (Python/Flas
 
 ## Project Structure
 
-- **App/**: C++ Application Entry point (`Main.cpp`).
-- **ArbSimCore/**: Core trading logic (`Strategy`, `Matching`, `PNL`).
-- **web-ui/**: Python backend and HTML frontend for visualization.
-- **data/**: CSV Market Data files.
+- **src/**: Source code.
+  - **core/**: Trading engine logic.
+  - **app/**: Main application entry point.
+  - **config/**: Configuration logic.
+- **config/**: Default configuration files.
+- **tools/**: Helper tools (e.g., Python server).
+- **web/**: Web UI templates and assets.
+- **data/**: Market data.
 
 ## Prerequisites
 
-- **Visual Studio 2022** (or compatible MSBuild environment) with C++ Desktop Development workload.
+- **CMake** (3.10+).
+- **C++ Compiler** (MSVC 2019+, GCC, or Clang).
 - **Python 3.x**.
 
-## How to Build (C++)
+## How to Build
 
-1.  Open `ArbSim.slnx` in Visual Studio.
-2.  Select **Release** / **x64** configuration.
-3.  Build Solution (`Ctrl+Shift+B`).
-
-*Alternatively, via command line:*
-```powershell
-MSBuild ArbSim.slnx /p:Configuration=Release /p:Platform=x64
+### C++ Engine
+```bash
+mkdir build
+cd build
+cmake ..
+cmake --build . --config Release
 ```
+This generates `ArbSim.exe` in `build/Release/`.
 
-## How to Run (Web Dashboard)
+> **Note**: If `cmake` is not in your PATH, you can often find it in:
+> `C:\Program Files\Microsoft Visual Studio\2022\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\bin\`
 
-1.  Install Python dependencies:
+
+### Web Dashboard
+1.  Install dependencies:
     ```bash
     pip install -r requirements.txt
     ```
-2.  Start the Web Server:
+2.  Start the Server:
     ```bash
-    python web-ui/server.py
+    python tools/server.py
     ```
-3.  Open browser to `http://localhost:5000`.
+    *Note: The server will automatically look for the built C++ executable.*
 
 ## Configuration
 

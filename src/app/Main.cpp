@@ -3,13 +3,13 @@
 #include <fstream>
 #include <streambuf>
 
-#include "Config.h"
-#include "CsvReader.h"
-#include "StreamMerger.h"
-#include "MarketData.h"
-#include "PnlTracker.h"
-#include "Strategy.h"
-#include "SimulationEngine.h"
+#include "config/Config.h"
+#include "core/CsvReader.h"
+#include "core/StreamMerger.h"
+#include "core/MarketData.h"
+#include "core/PnlTracker.h"
+#include "core/Strategy.h"
+#include "core/SimulationEngine.h"
 
 using namespace ArbSim;
 
@@ -34,7 +34,8 @@ int main()
         std::cin.tie(nullptr);
 
         const auto t_total0 = Clock::now();
-        Config cfg("config.cfg");
+        // Look for config in config/ directory relative to run CWD (project root)
+        Config cfg("config/config.cfg");
 
         CsvReader readerA(cfg.GetString("Data.FutureA"));
         CsvReader readerB(cfg.GetString("Data.FutureB"));
