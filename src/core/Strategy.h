@@ -1,40 +1,29 @@
 #ifndef STRATEGY_H
 #define STRATEGY_H
 
-namespace ArbSim
-{
+#include "../config/Config.h" // Include the Config definition
+#include "IStrategy.h"
+#include "StrategyParams.h"
 
-    enum class StrategyAction
-    {
-        None,
-        BuyB,
-        SellB
-    };
+namespace ArbSim {
 
-    struct StrategyParams
-    {
-        double MinArbitrageEdge;
-        int MaxAbsExposureLots;
-        double StopLossPnl;
-    };
+class Strategy : public IStrategy {
+public:
+  // Option 1: Initialize from a raw struct (Best for Unit Tests)
+  explicit Strategy(const StrategyParams &params);
 
-    class Strategy
-    {
-    public:
-        explicit Strategy(const StrategyParams& params);
+  // Option 2: Initialize directly from Config (Best for Main/Production)
+  explicit Strategy(const Config &cfg);
 
-        StrategyAction Decide(
-            double sellEdge,   // B_bid - A_ask
-            double buyEdge,    // A_bid - B_ask
-            int positionB,
-            double currentPnl
-        ) const;
+  // -- IStrategy Interface Implementation --
+  const StrategyParams &GetParams() const override;
 
-        const StrategyParams& GetParams() const;
+  StrategyAction Decide(double sellEdge, double buyEdge, int positionB,
+                        double currentPnl) const override;
 
-    private:
-        StrategyParams params_;
-    };
+private:
+  StrategyParams params_;
+};
 
 } // namespace ArbSim
 

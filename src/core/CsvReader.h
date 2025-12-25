@@ -1,41 +1,36 @@
 #ifndef CSV_READER_H
 #define CSV_READER_H
 
-#include <string>
-#include <fstream>
-#include <vector>
 #include "MarketData.h"
+#include <charconv> // Required for std::from_chars
+#include <fstream>
+#include <string>
+#include <vector>
+
 
 namespace ArbSim {
-    enum CsvColumn
-    {
-        ColSendingTime = 0,
-        ColInstrumentId,
-        ColEventTypeId,
-        ColBidSize,
-        ColBid,
-        ColAsk,
-        ColAskSize,
-        ColumnCount
-    };
 
-    class CsvReader {
-    public:
-        explicit CsvReader(const std::string& filePath);
+class CsvReader {
+public:
+  explicit CsvReader(const std::string &filePath);
 
-        bool IsOpen() const;
-        const std::string& GetFilePath() const;
+  bool IsOpen() const;
+  const std::string &GetFilePath() const;
 
-        bool ReadNextEvent(MarketEvent& event);
+  bool ReadNextEvent(MarketEvent &event);
 
-    private:
-        std::string filePath_;
-        std::ifstream file_;
+private:
+  std::string filePath_;
+  std::ifstream file_;
 
-        bool ReadNextNonEmptyLine(std::string& line);
+  // Reused buffer to minimize heap allocations
+  std::string lineBuffer_;
 
-        static void StripTrailingCarriageReturn(std::string& line);
-    };
+  bool ReadNextNonEmptyLine();
+
+  // Helper to strip CR if present
+  static void StripTrailingCarriageReturn(std::string &line);
+};
 
 } // namespace ArbSim
 

@@ -2,28 +2,34 @@
 #define STREAM_MERGER_H
 
 #include "CsvReader.h"
+#include "MarketData.h"
+#include <random> // Required for random engine
 
 namespace ArbSim {
 
-    class StreamMerger {
-    public:
-        StreamMerger(CsvReader& readerA, CsvReader& readerB);
+class StreamMerger {
+public:  
+  StreamMerger(CsvReader &readerA, CsvReader &readerB, unsigned int seed = 42);
 
-        // Returns false on EOF of both streams.
-        bool ReadNext(MarketEvent& outEvent);
+  bool ReadNext(MarketEvent &outEvent);
 
-    private:
-        CsvReader& readerA_;
-        CsvReader& readerB_;
+private:
+  CsvReader &readerA_;
+  CsvReader &readerB_;
 
-        MarketEvent nextA_;
-        MarketEvent nextB_;
-		bool hasNextA_ = false;
-		bool hasNextB_ = false;
+  MarketEvent nextA_;
+  MarketEvent nextB_;
 
-        void LoadNextAIfNeeded();
-        void LoadNextBIfNeeded();
-    };
+  bool hasNextA_;
+  bool hasNextB_;
+
+  // Deterministic Random Number Generator
+  std::mt19937 rng_;
+  std::uniform_int_distribution<int> coinFlip_;
+
+  void LoadNextAIfNeeded();
+  void LoadNextBIfNeeded();
+};
 
 } // namespace ArbSim
 

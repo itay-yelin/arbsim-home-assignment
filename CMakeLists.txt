@@ -16,7 +16,7 @@ set(SOURCES
     src/config/Config.cpp
     src/core/CsvReader.cpp
     src/core/PnlTracker.cpp
-    src/core/SimulationEngine.cpp
+    
     src/core/Strategy.cpp
     src/core/StreamMerger.cpp
 )

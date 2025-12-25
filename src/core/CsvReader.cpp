@@ -1,136 +1,142 @@
 #include "CsvReader.h"
 
-#include <sstream>
-#include <stdexcept>
-#include <vector>
+#include <cstdlib> // Required for std::strtoll, std::strtod
+#include <cstring> // Required for std::strncmp
 
-namespace ArbSim
-{
+namespace ArbSim {
 
-    CsvReader::CsvReader(const std::string& filePath)
-        : filePath_(filePath), file_(filePath)
-    {
-        if (!file_.is_open())
-        {
-            throw std::runtime_error("CsvReader: Failed to open file: " + filePath_);
-        }
+CsvReader::CsvReader(const std::string &filePath)
+    : filePath_(filePath), file_(filePath) {
+  if (!file_.is_open()) {
+    throw std::runtime_error("CsvReader: Failed to open file: " + filePath_);
+  }
+  // Reserve memory for typical line length to prevent early reallocations
+  lineBuffer_.reserve(128);
+}
+
+bool CsvReader::IsOpen() const { return file_.is_open(); }
+
+const std::string &CsvReader::GetFilePath() const { return filePath_; }
+
+bool CsvReader::ReadNextNonEmptyLine() {
+  while (std::getline(file_, lineBuffer_)) {
+    if (!lineBuffer_.empty()) {
+      return true;
+    }
+  }
+  return false;
+}
+
+void CsvReader::StripTrailingCarriageReturn(std::string &line) {
+  if (!line.empty() && line.back() == '\r') {
+    line.pop_back();
+  }
+}
+
+bool CsvReader::ReadNextEvent(MarketEvent &event) {
+  if (!ReadNextNonEmptyLine()) {
+    return false;
+  }
+
+  StripTrailingCarriageReturn(lineBuffer_);
+
+  const char *ptr = lineBuffer_.data();
+  const char *const end = ptr + lineBuffer_.size();
+
+  auto skipComma = [&]() {
+    if (ptr < end && *ptr == ',') {
+      ++ptr;
+      return true;
+    }
+    return false;
+  };
+
+  // r integer parsing 
+  auto parseInt = [&](auto &out) -> bool {
+    char *endPtr = nullptr;
+    long long val = std::strtoll(ptr, &endPtr, 10);
+
+    if (ptr == endPtr) {
+      return false; // No digits found
     }
 
-    bool CsvReader::IsOpen() const
-    {
-        return file_.is_open();
+    out = static_cast<std::decay_t<decltype(out)>>(val);
+    ptr = endPtr;
+    return true;
+  };
+
+  // double parsing 
+  auto parseDouble = [&](double &out) -> bool {
+    char *endPtr = nullptr;
+    out = std::strtod(ptr, &endPtr);
+
+    if (ptr == endPtr) {
+      return false; // No digits found
     }
 
-    const std::string& CsvReader::GetFilePath() const
-    {
-        return filePath_;
-    }
+    ptr = endPtr;
+    return true;
+  };
 
-    bool CsvReader::ReadNextNonEmptyLine(std::string& line)
-    {
-        while (std::getline(file_, line))
-        {
-            if (!line.empty())
-            {
-                return true;
-            }
-        }
-        return false;
-    }
+  // parse timestamp
+  if (!parseInt(event.sendingTime)) {
+    throw std::runtime_error("Parse error: sendingTime in " + lineBuffer_);
+  }
+  skipComma();
 
-    void CsvReader::StripTrailingCarriageReturn(std::string& line)
-    {
-        if (!line.empty() && line.back() == '\r')
-        {
-            line.pop_back();
-        }
-    }
+  // parse instrumentId 
+  const char *tokenEnd = ptr;
+  while (tokenEnd < end && *tokenEnd != ',') {
+    ++tokenEnd;
+  }
 
-    bool CsvReader::ReadNextEvent(MarketEvent& event)
-    {
-        std::string line;
-        if (!ReadNextNonEmptyLine(line))
-        {
-            return false;
-        }
+  // Calculate length 
+  std::ptrdiff_t len = tokenEnd - ptr;
 
-        StripTrailingCarriageReturn(line);
+  // "FutureA" (length 7)
+  if (len == 7 && std::strncmp(ptr, "FutureA", 7) == 0) {
+    event.instrumentId = InstrumentId::FutureA;
+  }
+  // "FutureB" (length 7)
+  else if (len == 7 && std::strncmp(ptr, "FutureB", 7) == 0) {
+    event.instrumentId = InstrumentId::FutureB;
+  } else {
+    event.instrumentId = InstrumentId::Unknown;
+  }
 
-        std::vector<std::string> parts;
-        parts.reserve(CsvColumn::ColumnCount);
+  ptr = tokenEnd;
+  skipComma();
 
-        {
-            std::stringstream ss(line);
-            std::string token;
-            while (std::getline(ss, token, ','))
-            {
-                parts.push_back(token);
-            }
-        }
+  // eventTypeId 
+  if (!parseInt(event.eventTypeId)) {
+    throw std::runtime_error("Parse error: eventTypeId in " + lineBuffer_);
+  }
+  skipComma();
 
-        if (parts.size() != CsvColumn::ColumnCount)
-        {
-            throw std::runtime_error("CsvReader: Malformed CSV line (expected 7 columns): " + line);
-        }
+  // bidSize
+  if (!parseInt(event.bidSize)) {
+    throw std::runtime_error("Parse error: bidSize in " + lineBuffer_);
+  }
+  skipComma();
 
-        try
-        {
-            std::size_t idx = 0;
+  // bid 
+  if (!parseDouble(event.bid)) {
+    throw std::runtime_error("Parse error: bid in " + lineBuffer_);
+  }
+  skipComma();
 
-            idx = 0;
-            event.sendingTime = std::stoll(parts[CsvColumn::ColSendingTime], &idx);
-            if (idx != parts[CsvColumn::ColSendingTime].size())
-            {
-                throw std::runtime_error("sendingTime trailing chars");
-            }
+  // ask 
+  if (!parseDouble(event.ask)) {
+    throw std::runtime_error("Parse error: ask in " + lineBuffer_);
+  }
+  skipComma();
 
-            event.instrumentId = StringToInstrument(parts[CsvColumn::ColInstrumentId]);
-            if (event.instrumentId == InstrumentId::Unknown)
-            {
-                throw std::runtime_error("unknown instrumentId: " + parts[CsvColumn::ColInstrumentId]);
-            }
+  // askSize
+  if (!parseInt(event.askSize)) {
+    throw std::runtime_error("Parse error: askSize in " + lineBuffer_);
+  }
 
-            idx = 0;
-            event.eventTypeId = std::stoi(parts[CsvColumn::ColEventTypeId], &idx);
-            if (idx != parts[CsvColumn::ColEventTypeId].size())
-            {
-                throw std::runtime_error("eventTypeId trailing chars");
-            }
-
-            idx = 0;
-            event.bidSize = std::stoi(parts[CsvColumn::ColBidSize], &idx);
-            if (idx != parts[CsvColumn::ColBidSize].size())
-            {
-                throw std::runtime_error("bidSize trailing chars");
-            }
-
-            idx = 0;
-            event.bid = std::stod(parts[CsvColumn::ColBid], &idx);
-            if (idx != parts[CsvColumn::ColBid].size())
-            {
-                throw std::runtime_error("bid trailing chars");
-            }
-
-            idx = 0;
-            event.ask = std::stod(parts[CsvColumn::ColAsk], &idx);
-            if (idx != parts[CsvColumn::ColAsk].size())
-            {
-                throw std::runtime_error("ask trailing chars");
-            }
-
-            idx = 0;
-            event.askSize = std::stoi(parts[CsvColumn::ColAskSize], &idx);
-            if (idx != parts[CsvColumn::ColAskSize].size())
-            {
-                throw std::runtime_error("askSize trailing chars");
-            }
-        }
-        catch (const std::exception& e)
-        {
-            throw std::runtime_error(std::string("CsvReader: Parse error: ") + e.what() + " | line: " + line);
-        }
-
-        return true;
-    }
+  return true;
+}
 
 } // namespace ArbSim

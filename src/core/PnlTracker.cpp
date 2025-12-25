@@ -3,150 +3,128 @@
 #include <cmath>
 #include <limits>
 
-namespace ArbSim
-{
+namespace ArbSim {
 
-    PnlTracker::PnlTracker()
-        : positionB_(0),
-        cash_(0.0),
-        hasMidB_(false),
-        lastMidB_(0.0),
-        totalPnl_(0.0),
-        bestPnl_(-std::numeric_limits<double>::infinity()),
-        worstPnl_(std::numeric_limits<double>::infinity()),
-        maxAbsExposure_(0),
-        tradedLots_(0)
-    {
-    }
+PnlTracker::PnlTracker()
+    : positionB_(0), cashInt_(0), lastMidBInt_(0), totalPnlInt_(0),
+      bestPnlInt_(std::numeric_limits<int64_t>::min()),
+      worstPnlInt_(std::numeric_limits<int64_t>::max()), hasMidB_(false),
+      maxAbsExposure_(0), tradedLots_(0) {}
 
-    int PnlTracker::GetPositionB() const
-    {
-        return positionB_;
-    }
+// --- Helpers ---
+double PnlTracker::ToDouble(int64_t val) const {
+  return static_cast<double>(val) / static_cast<double>(Multiplier);
+}
 
-    double PnlTracker::GetCash() const
-    {
-        return cash_;
-    }
+int64_t PnlTracker::ToInt(double val) const {
+  // round to nearest integer unit
+  return std::llround(val * static_cast<double>(Multiplier));
+}
 
-    bool PnlTracker::HasMidB() const
-    {
-        return hasMidB_;
-    }
+// --- Getters ---
+int PnlTracker::GetPositionB() const { return positionB_; }
 
-    double PnlTracker::GetLastMidB() const
-    {
-        return lastMidB_;
-    }
+double PnlTracker::GetCash() const { return ToDouble(cashInt_); }
 
-    double PnlTracker::GetTotalPnl() const
-    {
-        return totalPnl_;
-    }
+bool PnlTracker::HasMidB() const { return hasMidB_; }
 
-    double PnlTracker::GetBestPnl() const
-    {
-        return bestPnl_;
-    }
+double PnlTracker::GetLastMidB() const { return ToDouble(lastMidBInt_); }
 
-    double PnlTracker::GetWorstPnl() const
-    {
-        return worstPnl_;
-    }
+double PnlTracker::GetTotalPnl() const { return ToDouble(totalPnlInt_); }
 
-    int PnlTracker::GetMaxAbsExposure() const
-    {
-        return maxAbsExposure_;
-    }
+double PnlTracker::GetBestPnl() const {
+  // Handle initial state with min max undefined
+  if (bestPnlInt_ == std::numeric_limits<int64_t>::min()) {
+    return 0.0;
+  }
+  return ToDouble(bestPnlInt_);
+}
 
-    int PnlTracker::GetTradedLots() const
-    {
-        return tradedLots_;
-    }
+double PnlTracker::GetWorstPnl() const {
+  if (worstPnlInt_ == std::numeric_limits<int64_t>::max()) {
+    return 0.0;
+  }
+  return ToDouble(worstPnlInt_);
+}
 
-    double PnlTracker::CalcMid(const MarketEvent& ev)
-    {
-        return (ev.bid + ev.ask) * 0.5;
-    }
+int PnlTracker::GetMaxAbsExposure() const { return maxAbsExposure_; }
 
-    void PnlTracker::OnQuoteB(const MarketEvent& bEvent)
-    {
-        lastMidB_ = CalcMid(bEvent);
-        hasMidB_ = true;
+int PnlTracker::GetTradedLots() const { return tradedLots_; }
 
-        MarkToMarket();
-    }
+// --- Logic ---
 
-    void PnlTracker::ApplyTradeB(long long /*time*/, Side side, double price, int quantity)
-    {
-        if (quantity <= 0)
-        {
-            return;
-        }
+void PnlTracker::OnQuoteB(const MarketEvent &bEvent) {
+  // Calculate Mid in double, then convert to int
+  const double mid = (bEvent.bid + bEvent.ask) * 0.5;
+  lastMidBInt_ = ToInt(mid);
+  hasMidB_ = true;
 
-        if (side == Side::Buy)
-        {
-            positionB_ += quantity;
-            cash_ -= price * quantity;
-        }
-        else
-        {
-            positionB_ -= quantity;
-            cash_ += price * quantity;
-        }
+  MarkToMarket();
+}
 
-        tradedLots_ += quantity;
+void PnlTracker::ApplyTradeB(long long /*time*/, Side side, double price,
+                             int quantity) {
+  if (quantity <= 0) {
+    return;
+  }
 
-        const int absPos = std::abs(positionB_);
-        if (absPos > maxAbsExposure_)
-        {
-            maxAbsExposure_ = absPos;
-        }
+  const int64_t priceInt = ToInt(price);
+  const int64_t costInt = priceInt * quantity;
 
-        MarkToMarket();
-    }
+  if (side == Side::Buy) {
+    positionB_ += quantity;
+    cashInt_ -= costInt;
+  } else {
+    positionB_ -= quantity;
+    cashInt_ += costInt;
+  }
 
-    double PnlTracker::MarkToMarket()
-    {
-        if (!hasMidB_)
-        {
-            return totalPnl_;
-        }
+  tradedLots_ += quantity;
 
-        totalPnl_ = cash_ + positionB_ * lastMidB_;
-        UpdateExtremes();
-        return totalPnl_;
-    }
+  const int absPos = std::abs(positionB_);
+  if (absPos > maxAbsExposure_) {
+    maxAbsExposure_ = absPos;
+  }
 
-    void PnlTracker::UpdateExtremes()
-    {
-        if (totalPnl_ > bestPnl_)
-        {
-            bestPnl_ = totalPnl_;
-        }
+  MarkToMarket();
+}
 
-        if (totalPnl_ < worstPnl_)
-        {
-            worstPnl_ = totalPnl_;
-        }
-    }
+void PnlTracker::MarkToMarket() {
+  if (!hasMidB_) {
+    return;
+  }
 
-    void PnlTracker::FlattenAtMid(long long /*time*/)
-    {
-        if (!hasMidB_)
-        {
-            return;
-        }
+  // PnL = Cash + (Position * CurrentMidPrice)
+  // All done in integers -> No floating point drift
+  totalPnlInt_ = cashInt_ + (static_cast<int64_t>(positionB_) * lastMidBInt_);
 
-        if (positionB_ == 0)
-        {
-            return;
-        }
+  UpdateExtremes();
+}
 
-        cash_ += positionB_ * lastMidB_;
-        positionB_ = 0;
+void PnlTracker::UpdateExtremes() {
+  if (totalPnlInt_ > bestPnlInt_) {
+    bestPnlInt_ = totalPnlInt_;
+  }
 
-        MarkToMarket();
-    }
+  if (totalPnlInt_ < worstPnlInt_) {
+    worstPnlInt_ = totalPnlInt_;
+  }
+}
+
+void PnlTracker::FlattenAtMid(long long /*time*/) {
+  if (!hasMidB_) {
+    return;
+  }
+
+  if (positionB_ == 0) {
+    return;
+  }
+
+  // Mark position to market to realize remaining PnL
+  cashInt_ += (static_cast<int64_t>(positionB_) * lastMidBInt_);
+  positionB_ = 0;
+
+  MarkToMarket();
+}
 
 } // namespace ArbSim

@@ -1,56 +1,45 @@
 #include "Strategy.h"
 
 #include <cmath>
+#include <cstdlib>
 
-namespace ArbSim
-{
+namespace ArbSim {
 
-    Strategy::Strategy(const StrategyParams& params)
-        : params_(params)
-    {
+Strategy::Strategy(const StrategyParams &params) : params_(params) {}
+
+Strategy::Strategy(const Config &cfg) {
+  params_.MinArbitrageEdge = cfg.GetDouble("Strategy.MinArbitrageEdge");
+  params_.StopLossPnl = cfg.GetDouble("Strategy.StopLossPnl");
+  params_.MaxAbsExposureLots = cfg.GetInt("Strategy.MaxAbsExposureLots");
+}
+
+const StrategyParams &Strategy::GetParams() const { return params_; }
+
+StrategyAction Strategy::Decide(double sellEdge, double buyEdge, int positionB,
+                                double currentPnl) const {
+  // 1. DECISION: Stop Loss (Moved from Engine to Strategy)
+  if (currentPnl < params_.StopLossPnl) {
+    return StrategyAction::Flatten;
+  }
+
+  // 2. DECISION: Entry Logic
+  if (sellEdge >= params_.MinArbitrageEdge) {
+    const int nextPos = positionB - 1;
+    if (std::abs(nextPos) > params_.MaxAbsExposureLots) {
+      return StrategyAction::None;
     }
+    return StrategyAction::SellB;
+  }
 
-    const StrategyParams& Strategy::GetParams() const
-    {
-        return params_;
+  if (buyEdge >= params_.MinArbitrageEdge) {
+    const int nextPos = positionB + 1;
+    if (std::abs(nextPos) > params_.MaxAbsExposureLots) {
+      return StrategyAction::None;
     }
+    return StrategyAction::BuyB;
+  }
 
-    StrategyAction Strategy::Decide(
-        double sellEdge,
-        double buyEdge,
-        int positionB,
-        double currentPnl
-    ) const
-    {
-        if (currentPnl < params_.StopLossPnl)
-        {
-            return StrategyAction::None;
-        }
-
-        if (sellEdge >= params_.MinArbitrageEdge)
-        {
-            // exposure check fixed below in section 2
-            const int nextPos = positionB - 1;
-            if (std::abs(nextPos) > params_.MaxAbsExposureLots)
-            {
-                return StrategyAction::None;
-            }
-
-            return StrategyAction::SellB;
-        }
-
-        if (buyEdge >= params_.MinArbitrageEdge)
-        {
-            const int nextPos = positionB + 1;
-            if (std::abs(nextPos) > params_.MaxAbsExposureLots)
-            {
-                return StrategyAction::None;
-            }
-
-            return StrategyAction::BuyB;
-        }
-
-        return StrategyAction::None;
-    }
+  return StrategyAction::None;
+}
 
 } // namespace ArbSim

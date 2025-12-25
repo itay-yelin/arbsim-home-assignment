@@ -12,10 +12,11 @@
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <VCProjectVersion>17.0</VCProjectVersion>
+    <ProjectGuid>{F7000000-0000-0000-0000-000000000001}</ProjectGuid>
     <Keyword>Win32Proj</Keyword>
-    <ProjectGuid>{E6342801-6456-4241-9989-112233445566}</ProjectGuid>
-    <RootNamespace>ArbSim</RootNamespace>
+    <RootNamespace>ArbSimTests</RootNamespace>
     <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
+    <ProjectName>ArbSimTests</ProjectName>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">
@@ -45,11 +46,11 @@
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <OutDir>$(SolutionDir)build\$(Configuration)\</OutDir>
-    <IntDir>build\intermediates\$(Configuration)\</IntDir>
+    <IntDir>build\intermediates\Tests\$(Configuration)\</IntDir>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <OutDir>$(SolutionDir)build\$(Configuration)\</OutDir>
-    <IntDir>build\intermediates\$(Configuration)\</IntDir>
+    <IntDir>build\intermediates\Tests\$(Configuration)\</IntDir>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <ClCompile>
@@ -84,26 +85,26 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="src\app\Main.cpp" />
-    <ClCompile Include="src\config\Config.cpp" />
-    <ClCompile Include="src\core\CsvReader.cpp" />
+    <ClCompile Include="Tests\PnlTrackerTest.cpp" />
     <ClCompile Include="src\core\PnlTracker.cpp" />
-    <ClCompile Include="src\core\SimulationEngine.cpp" />
-    <ClCompile Include="src\core\Strategy.cpp" />
-    <ClCompile Include="src\core\StreamMerger.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="src\config\Config.h" />
-    <ClInclude Include="src\core\CsvReader.h" />
-    <ClInclude Include="src\core\MarketData.h" />
     <ClInclude Include="src\core\PnlTracker.h" />
-    <ClInclude Include="src\core\SimulationEngine.h" />
-    <ClInclude Include="src\core\Strategy.h" />
-    <ClInclude Include="src\core\IStrategy.h" />
-    <ClInclude Include="src\core\StrategyParams.h" />
-    <ClInclude Include="src\core\StreamMerger.h" />
+    <ClInclude Include="src\core\MarketData.h" />
+  </ItemGroup>
+  <!-- NOTE: Google Test is expected to be installed via NuGet or vcpkg. 
+       If using NuGet, managing the package via VS is recommended. -->
+  <ItemGroup>
+      <None Include="packages.config" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
+    <Import Project="..\packages\Microsoft.googletest.v140.windesktop.msvcstl.static.rt-dyn.1.8.1.7\build\native\Microsoft.googletest.v140.windesktop.msvcstl.static.rt-dyn.targets" Condition="Exists('..\packages\Microsoft.googletest.v140.windesktop.msvcstl.static.rt-dyn.1.8.1.7\build\native\Microsoft.googletest.v140.windesktop.msvcstl.static.rt-dyn.targets')" />
   </ImportGroup>
+  <Target Name="EnsureNuGetPackageBuildImports" BeforeTargets="PrepareForBuild">
+    <PropertyGroup>
+      <ErrorText>This project references NuGet package(s) that are missing on this computer. Use NuGet Package Restore to download them.  For more information, see http://go.microsoft.com/fwlink/?LinkID=322105. The missing file is {0}.</ErrorText>
+    </PropertyGroup>
+    <Error Condition="!Exists('..\packages\Microsoft.googletest.v140.windesktop.msvcstl.static.rt-dyn.1.8.1.7\build\native\Microsoft.googletest.v140.windesktop.msvcstl.static.rt-dyn.targets')" Text="$([System.String]::Format('$(ErrorText)', '..\packages\Microsoft.googletest.v140.windesktop.msvcstl.static.rt-dyn.1.8.1.7\build\native\Microsoft.googletest.v140.windesktop.msvcstl.static.rt-dyn.targets'))" />
+  </Target>
 </Project>
