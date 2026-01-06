@@ -40,9 +40,9 @@ int main(int argc, char* argv[]) {
         std::string path = (argc > 1) ? argv[1] : "config/config.cfg";
         Config cfg(path);
 
-        // 3. Initialize Data Readers
-        CsvReader readerA(cfg.GetString("Data.FutureA"));
-        CsvReader readerB(cfg.GetString("Data.FutureB"));
+        // 3. Initialize Data Readers (with path validation for security)
+        CsvReader readerA(cfg.GetValidatedPath("Data.FutureA"));
+        CsvReader readerB(cfg.GetValidatedPath("Data.FutureB"));
         StreamMerger merger(readerA, readerB);
 
         // 4. Initialize Core Components with Static Polymorphism

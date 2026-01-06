@@ -6,6 +6,12 @@ from flask import Flask, request, jsonify, render_template
 
 import sys
 
+# Constants for security limits
+MAX_FILE_SIZE_MB = 100
+MAX_FILE_SIZE_BYTES = MAX_FILE_SIZE_MB * 1024 * 1024
+ALLOWED_EXTENSIONS = {'.csv'}
+SUBPROCESS_TIMEOUT_SECONDS = 300  # 5 minutes
+
 # Determine paths for frozen (exe) vs script mode
 if getattr(sys, 'frozen', False):
     # Bundle Dir is the temp folder where PyInstaller extracts files
@@ -191,38 +197,92 @@ def run_simulation():
     update_config(x, y, z)
     
     try:
-        # Run C++ App
+        # Run C++ App with timeout protection
         result = subprocess.run(
-            [EXE_PATH], 
-            cwd=PROJECT_ROOT, 
-            capture_output=True, 
-            text=True
+            [EXE_PATH],
+            cwd=PROJECT_ROOT,
+            capture_output=True,
+            text=True,
+            timeout=SUBPROCESS_TIMEOUT_SECONDS
         )
-        
+
         trades, summary, chart_data = parse_trades_and_pnl(result.stdout)
-        
+
         return jsonify({
             'success': True,
             'summary': summary,
             'trades': trades,
             'chart': chart_data
         })
+    except subprocess.TimeoutExpired:
+        return jsonify({'success': False, 'error': f'Simulation timed out after {SUBPROCESS_TIMEOUT_SECONDS} seconds'}), 504
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
+
+def validate_uploaded_file(file_storage, field_name):
+    """Validate an uploaded file for security and correctness.
+
+    Returns (is_valid, error_message) tuple.
+    """
+    if not file_storage or file_storage.filename == '':
+        return True, None  # Empty upload is OK (optional)
+
+    filename = file_storage.filename
+
+    # Check extension
+    _, ext = os.path.splitext(filename.lower())
+    if ext not in ALLOWED_EXTENSIONS:
+        return False, f'{field_name}: Only CSV files are allowed (got {ext})'
+
+    # Check file size
+    file_storage.seek(0, 2)  # Seek to end
+    file_size = file_storage.tell()
+    file_storage.seek(0)  # Reset to beginning
+
+    if file_size > MAX_FILE_SIZE_BYTES:
+        return False, f'{field_name}: File too large ({file_size // (1024*1024)}MB > {MAX_FILE_SIZE_MB}MB limit)'
+
+    if file_size == 0:
+        return False, f'{field_name}: File is empty'
+
+    return True, None
+
 
 @app.route('/api/upload', methods=['POST'])
 def upload_files():
     try:
+        errors = []
+
+        # Validate both files first
+        if 'futureA' in request.files:
+            fa = request.files['futureA']
+            valid, error = validate_uploaded_file(fa, 'FutureA')
+            if not valid:
+                errors.append(error)
+
+        if 'futureB' in request.files:
+            fb = request.files['futureB']
+            valid, error = validate_uploaded_file(fb, 'FutureB')
+            if not valid:
+                errors.append(error)
+
+        if errors:
+            return jsonify({'success': False, 'error': '; '.join(errors)}), 400
+
+        # Ensure data directory exists
+        os.makedirs(DATA_DIR, exist_ok=True)
+
+        # Save files with fixed safe filenames (prevents path traversal)
         if 'futureA' in request.files:
             fa = request.files['futureA']
             if fa.filename != '':
                 fa.save(os.path.join(DATA_DIR, 'futureA.csv'))
-        
+
         if 'futureB' in request.files:
             fb = request.files['futureB']
             if fb.filename != '':
                 fb.save(os.path.join(DATA_DIR, 'futureB.csv'))
-                
+
         return jsonify({'success': True})
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
