@@ -17,6 +17,7 @@
 #include "../src/core/PnlTracker.h"
 #include "../src/core/Strategy.h"
 #include "../src/core/SimulationEngine.h"
+#include "../src/config/Config.h"
 
 using namespace ArbSim;
 
@@ -538,6 +539,206 @@ void TestPnlTrackerMaxExposure()
     PrintOk("PnlTracker max exposure");
 }
 
+//================= Dropped Trade Observability Tests =================//
+
+void TestSimulationEngine_DroppedBuyCount_WhenAskSizeZero()
+{
+    StrategyParams p{};
+    p.MinArbitrageEdge = 1.0;
+    p.MaxAbsExposureLots = 2;
+    p.StopLossPnl = -50.0;
+
+    std::string tradeBuf;
+    tradeBuf.reserve(1 << 20);
+    SimulationEngine eng(Strategy(p), PnlTracker(), tradeBuf);
+
+    // Force BuyB signal: A_bid - B_ask >= 1
+    eng.OnEvent(MakeQuote(100, InstrumentId::FutureA, 101.0, 102.0, 100, 100));
+    // B_ask=100, but askSize=0 => buy should be dropped
+    eng.OnEvent(MakeQuote(101, InstrumentId::FutureB, 99.0, 100.0, 100, 0));
+
+    Require(eng.GetDroppedBuyCount() == 1, "Expected droppedBuyCount=1 when askSize=0");
+    Require(eng.GetDroppedSellCount() == 0, "Expected droppedSellCount=0");
+    Require(eng.GetTotalDroppedTrades() == 1, "Expected totalDroppedTrades=1");
+    PrintOk("SimulationEngine tracks dropped buy count");
+}
+
+void TestSimulationEngine_DroppedSellCount_WhenBidSizeZero()
+{
+    StrategyParams p{};
+    p.MinArbitrageEdge = 1.0;
+    p.MaxAbsExposureLots = 2;
+    p.StopLossPnl = -50.0;
+
+    std::string tradeBuf;
+    tradeBuf.reserve(1 << 20);
+    SimulationEngine eng(Strategy(p), PnlTracker(), tradeBuf);
+
+    // Force SellB signal: B_bid - A_ask >= 1
+    eng.OnEvent(MakeQuote(100, InstrumentId::FutureA, 99.0, 100.0, 100, 100));
+    // B_bid=101, but bidSize=0 => sell should be dropped
+    eng.OnEvent(MakeQuote(101, InstrumentId::FutureB, 101.0, 102.0, 0, 100));
+
+    Require(eng.GetDroppedSellCount() == 1, "Expected droppedSellCount=1 when bidSize=0");
+    Require(eng.GetDroppedBuyCount() == 0, "Expected droppedBuyCount=0");
+    Require(eng.GetTotalDroppedTrades() == 1, "Expected totalDroppedTrades=1");
+    PrintOk("SimulationEngine tracks dropped sell count");
+}
+
+void TestSimulationEngine_MultipleDroppedTrades()
+{
+    StrategyParams p{};
+    p.MinArbitrageEdge = 1.0;
+    p.MaxAbsExposureLots = 10;
+    p.StopLossPnl = -50.0;
+
+    std::string tradeBuf;
+    tradeBuf.reserve(1 << 20);
+    SimulationEngine eng(Strategy(p), PnlTracker(), tradeBuf);
+
+    // Setup initial quotes
+    eng.OnEvent(MakeQuote(100, InstrumentId::FutureA, 101.0, 102.0, 100, 100));
+    eng.OnEvent(MakeQuote(101, InstrumentId::FutureB, 99.0, 100.0, 100, 0)); // Drop buy #1
+
+    eng.OnEvent(MakeQuote(102, InstrumentId::FutureB, 99.0, 100.0, 100, 0)); // Drop buy #2
+
+    eng.OnEvent(MakeQuote(103, InstrumentId::FutureA, 99.0, 100.0, 100, 100));
+    eng.OnEvent(MakeQuote(104, InstrumentId::FutureB, 101.0, 102.0, 0, 100)); // Drop sell #1
+
+    Require(eng.GetDroppedBuyCount() == 2, "Expected droppedBuyCount=2");
+    Require(eng.GetDroppedSellCount() == 1, "Expected droppedSellCount=1");
+    Require(eng.GetTotalDroppedTrades() == 3, "Expected totalDroppedTrades=3");
+    PrintOk("SimulationEngine tracks multiple dropped trades");
+}
+
+//================= Epsilon Comparison Tests =================//
+
+void TestStrategy_EpsilonComparison_SellEdgeSlightlyBelow()
+{
+    StrategyParams p{};
+    p.MinArbitrageEdge = 1.0;
+    p.MaxAbsExposureLots = 2;
+    p.StopLossPnl = -50.0;
+
+    Strategy s(p);
+
+    // Edge is 0.9999999999 due to floating-point, should still trigger with epsilon
+    double sellEdge = 1.0 - 1e-10;
+    StrategyAction a = s.Decide(sellEdge, 0.0, 0, 0.0);
+    Require(a == StrategyAction::SellB, "Strategy: expected SellB when sellEdge is within epsilon of threshold");
+    PrintOk("Strategy epsilon comparison works for sell edge");
+}
+
+void TestStrategy_EpsilonComparison_BuyEdgeSlightlyBelow()
+{
+    StrategyParams p{};
+    p.MinArbitrageEdge = 1.0;
+    p.MaxAbsExposureLots = 2;
+    p.StopLossPnl = -50.0;
+
+    Strategy s(p);
+
+    // Edge is 0.9999999999 due to floating-point, should still trigger with epsilon
+    double buyEdge = 1.0 - 1e-10;
+    StrategyAction a = s.Decide(0.0, buyEdge, 0, 0.0);
+    Require(a == StrategyAction::BuyB, "Strategy: expected BuyB when buyEdge is within epsilon of threshold");
+    PrintOk("Strategy epsilon comparison works for buy edge");
+}
+
+void TestStrategy_EpsilonComparison_EdgeTooFarBelow()
+{
+    StrategyParams p{};
+    p.MinArbitrageEdge = 1.0;
+    p.MaxAbsExposureLots = 2;
+    p.StopLossPnl = -50.0;
+
+    Strategy s(p);
+
+    // Edge is significantly below threshold (more than epsilon)
+    double sellEdge = 1.0 - 1e-8; // 0.99999999, outside epsilon tolerance
+    StrategyAction a = s.Decide(sellEdge, 0.0, 0, 0.0);
+    Require(a == StrategyAction::None, "Strategy: expected None when edge is outside epsilon tolerance");
+    PrintOk("Strategy rejects edge outside epsilon tolerance");
+}
+
+//================= Config Path Validation Tests =================//
+
+void TestConfig_GetValidatedPath_RejectsPathTraversal()
+{
+    const std::string configFile = "Data/_tmp_config_test.cfg";
+    WriteTextFile(configFile, "Data.FutureA=../../../etc/passwd\n");
+
+    try
+    {
+        Config cfg(configFile);
+        bool threw = false;
+        try
+        {
+            cfg.GetValidatedPath("Data.FutureA");
+        }
+        catch (const std::runtime_error&)
+        {
+            threw = true;
+        }
+        Require(threw, "Config: expected GetValidatedPath to throw on path traversal");
+        PrintOk("Config rejects path traversal attempts");
+    }
+    catch (...)
+    {
+        std::remove(configFile.c_str());
+        throw;
+    }
+    std::remove(configFile.c_str());
+}
+
+void TestConfig_GetValidatedPath_AcceptsValidPath()
+{
+    const std::string configFile = "Data/_tmp_config_valid.cfg";
+    WriteTextFile(configFile, "Data.FutureA=Data/futureA.csv\n");
+
+    try
+    {
+        Config cfg(configFile);
+        std::string path = cfg.GetValidatedPath("Data.FutureA");
+        Require(path == "Data/futureA.csv", "Config: expected valid path to be returned");
+        PrintOk("Config accepts valid relative path");
+    }
+    catch (...)
+    {
+        std::remove(configFile.c_str());
+        throw;
+    }
+    std::remove(configFile.c_str());
+}
+
+void TestConfig_GetValidatedPath_RejectsDoubleDot()
+{
+    const std::string configFile = "Data/_tmp_config_dotdot.cfg";
+    WriteTextFile(configFile, "Data.FutureA=data/../data/../secret.csv\n");
+
+    try
+    {
+        Config cfg(configFile);
+        bool threw = false;
+        try
+        {
+            cfg.GetValidatedPath("Data.FutureA");
+        }
+        catch (const std::runtime_error&)
+        {
+            threw = true;
+        }
+        Require(threw, "Config: expected GetValidatedPath to throw on embedded ..");
+        PrintOk("Config rejects paths with embedded ..");
+    }
+    catch (...)
+    {
+        std::remove(configFile.c_str());
+        throw;
+    }
+    std::remove(configFile.c_str());
+}
+
 //================= Test Runner =================//
 
 int main()
@@ -575,6 +776,21 @@ int main()
         TestSimulationEngine_EndOfDayClose_Tagged();
         TestSimulationEngine_BuyBlocked_WhenAskSizeZero();
         TestSimulationEngine_SellBlocked_WhenBidSizeZero();
+
+        // Dropped trade observability tests
+        TestSimulationEngine_DroppedBuyCount_WhenAskSizeZero();
+        TestSimulationEngine_DroppedSellCount_WhenBidSizeZero();
+        TestSimulationEngine_MultipleDroppedTrades();
+
+        // Epsilon comparison tests
+        TestStrategy_EpsilonComparison_SellEdgeSlightlyBelow();
+        TestStrategy_EpsilonComparison_BuyEdgeSlightlyBelow();
+        TestStrategy_EpsilonComparison_EdgeTooFarBelow();
+
+        // Config path validation tests
+        TestConfig_GetValidatedPath_RejectsPathTraversal();
+        TestConfig_GetValidatedPath_AcceptsValidPath();
+        TestConfig_GetValidatedPath_RejectsDoubleDot();
     }
     catch (const std::exception& e)
     {
