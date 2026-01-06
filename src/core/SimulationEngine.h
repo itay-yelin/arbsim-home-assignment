@@ -58,6 +58,8 @@ namespace ArbSim {
             out << "Worst PnL: " << pnl_.GetWorstPnl() << "\n";
             out << "Max exposure: " << pnl_.GetMaxAbsExposure() << "\n";
             out << "Traded lots: " << pnl_.GetTradedLots() << "\n";
+            out << "Dropped buys: " << droppedBuyCount_ << "\n";
+            out << "Dropped sells: " << droppedSellCount_ << "\n";
         }
 
         // Getters for Main loop logging
@@ -65,6 +67,11 @@ namespace ArbSim {
         double GetLastMidB() const { return pnl_.GetLastMidB(); }
         double GetLastMidA() const { return 0.0; }
         bool IsStopped() const { return stopTrading_; }
+
+        // Observability: expose dropped trade counts
+        size_t GetDroppedBuyCount() const { return droppedBuyCount_; }
+        size_t GetDroppedSellCount() const { return droppedSellCount_; }
+        size_t GetTotalDroppedTrades() const { return droppedBuyCount_ + droppedSellCount_; }
 
     private:
         TStrategy strategy_; 
@@ -77,6 +84,10 @@ namespace ArbSim {
         bool stopTrading_;
         bool hasA_;
         bool hasB_;
+
+        // Observability: track dropped trades
+        size_t droppedBuyCount_ = 0;
+        size_t droppedSellCount_ = 0;
 
         /**
          * Core trading logic. By using a template, strategy_.Decide() is a direct
@@ -100,13 +111,19 @@ namespace ArbSim {
                 break;
             }
             case StrategyAction::BuyB: {
-                if (lastQuoteB_.askSize < 1) return;
+                if (lastQuoteB_.askSize < 1) {
+                    ++droppedBuyCount_;
+                    return;
+                }
                 pnl_.ApplyTradeB(time, Side::Buy, lastQuoteB_.ask, 1);
                 LogTrade(time, "BUY", lastQuoteB_.ask);
                 break;
             }
             case StrategyAction::SellB: {
-                if (lastQuoteB_.bidSize < 1) return;
+                if (lastQuoteB_.bidSize < 1) {
+                    ++droppedSellCount_;
+                    return;
+                }
                 pnl_.ApplyTradeB(time, Side::Sell, lastQuoteB_.bid, 1);
                 LogTrade(time, "SELL", lastQuoteB_.bid);
                 break;
