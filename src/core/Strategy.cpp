@@ -1,21 +1,20 @@
 #include "Strategy.h"
+#include "Constants.h"
 
 #include <cmath>
 #include <cstdlib>
 
-namespace {
-// Epsilon for floating-point comparisons to avoid precision errors
-constexpr double kEpsilon = 1e-9;
-} // namespace
-
 namespace ArbSim {
 
-Strategy::Strategy(const StrategyParams &params) : params_(params) {}
+Strategy::Strategy(const StrategyParams &params) : params_(params) {
+  params_.Validate();
+}
 
 Strategy::Strategy(const Config &cfg) {
   params_.MinArbitrageEdge = cfg.GetDouble("Strategy.MinArbitrageEdge");
   params_.StopLossPnl = cfg.GetDouble("Strategy.StopLossPnl");
   params_.MaxAbsExposureLots = cfg.GetInt("Strategy.MaxAbsExposureLots");
+  params_.Validate();
 }
 
 const StrategyParams &Strategy::GetParams() const { return params_; }
@@ -29,7 +28,7 @@ StrategyAction Strategy::Decide(double sellEdge, double buyEdge, int positionB,
 
   // 2. DECISION: Entry Logic
   // Use epsilon tolerance to avoid missing trades due to floating-point precision
-  if (sellEdge >= params_.MinArbitrageEdge - kEpsilon) {
+  if (sellEdge >= params_.MinArbitrageEdge - kFloatCompareEpsilon) {
     const int nextPos = positionB - 1;
     if (std::abs(nextPos) > params_.MaxAbsExposureLots) {
       return StrategyAction::None;
@@ -37,7 +36,7 @@ StrategyAction Strategy::Decide(double sellEdge, double buyEdge, int positionB,
     return StrategyAction::SellB;
   }
 
-  if (buyEdge >= params_.MinArbitrageEdge - kEpsilon) {
+  if (buyEdge >= params_.MinArbitrageEdge - kFloatCompareEpsilon) {
     const int nextPos = positionB + 1;
     if (std::abs(nextPos) > params_.MaxAbsExposureLots) {
       return StrategyAction::None;

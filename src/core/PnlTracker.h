@@ -1,9 +1,10 @@
 #ifndef PNL_TRACKER_H
 #define PNL_TRACKER_H
 
+#include "Constants.h"
 #include "MarketData.h"
 #include <algorithm>
-#include <cstdint> // For int64_t
+#include <cstdint>
 
 namespace ArbSim
 {
@@ -31,8 +32,8 @@ namespace ArbSim
         void FlattenAtMid(long long time);
 
     private:
-        // Precision Multiplier (e.g., 1,000,000 for 6 decimal places)
-        static constexpr int64_t Multiplier = 1000000;
+        // Precision Multiplier (6 decimal places)
+        static constexpr int64_t Multiplier = kPnlMultiplier;
 
         int positionB_;
         

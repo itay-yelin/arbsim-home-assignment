@@ -2,16 +2,16 @@
 #include <iostream>
 #include <memory>
 #include <string>
+#include <filesystem>
 
 #include "../config/Config.h"
+#include "../core/Constants.h"
 #include "../core/CsvReader.h"
 #include "../core/MarketData.h"
 #include "../core/PnlTracker.h"
 #include "../core/SimulationEngine.h"
 #include "../core/Strategy.h"
 #include "../core/StreamMerger.h"
-
-#include <filesystem> // Requires C++17
 
 using namespace ArbSim;
 
@@ -52,7 +52,7 @@ int main(int argc, char* argv[]) {
 
         // Pre-allocate log buffer to prevent heap fragmentation during hot loop
         std::string tradeBuf;
-        tradeBuf.reserve(1 << 20);
+        tradeBuf.reserve(kTradeLogBufferSize);
 
         // Instantiate the templated engine. TStrategy is now 'Strategy'.
         // This allows the compiler to inline strategy.Decide().
@@ -62,10 +62,11 @@ int main(int argc, char* argv[]) {
         MarketEvent ev{};
         long long lastTime = 0;
         std::uint64_t events = 0;
-        double onEventMsSum = 0.0;
-
         long long nextPrintTime = 0;
-        const long long printInterval = 60000000000LL; // 60 seconds (ns)
+
+#ifdef ENABLE_PER_EVENT_TIMING
+        double onEventMsSum = 0.0;
+#endif
 
         const auto t_loop0 = Clock::now();
 
@@ -73,14 +74,17 @@ int main(int argc, char* argv[]) {
         while (merger.ReadNext(ev)) {
             lastTime = ev.sendingTime;
 
-            // Note: In a production low-latency environment, you would 
-            // remove these per-event clock reads to reduce overhead.
+#ifdef ENABLE_PER_EVENT_TIMING
             const auto t0 = Clock::now();
+#endif
 
             // Static dispatch happens here
             engine.OnEvent(ev);
 
+#ifdef ENABLE_PER_EVENT_TIMING
             const auto t1 = Clock::now();
+            onEventMsSum += Ms(t0, t1);
+#endif
 
             // Periodic PnL Snapshot printing
             if (ev.sendingTime >= nextPrintTime) {
@@ -89,10 +93,9 @@ int main(int argc, char* argv[]) {
                         << engine.GetLastMidB() << "," << engine.GetLastMidA()
                         << "\n";
                 }
-                nextPrintTime = ev.sendingTime + printInterval;
+                nextPrintTime = ev.sendingTime + kPnlPrintIntervalNs;
             }
 
-            onEventMsSum += Ms(t0, t1);
             ++events;
 
             if (engine.IsStopped()) {
@@ -121,7 +124,9 @@ int main(int argc, char* argv[]) {
         std::cout << "Loop time: " << loopMs << " ms\n";
         std::cout << "Total time: " << totalMs << " ms\n";
         std::cout << "Throughput: " << (loopSec > 0.0 ? (events / loopSec) : 0.0) << " events/sec\n";
+#ifdef ENABLE_PER_EVENT_TIMING
         std::cout << "Avg OnEvent: " << (events ? (onEventMsSum / events) : 0.0) << " ms\n";
+#endif
 
     }
     catch (const std::exception& e) {

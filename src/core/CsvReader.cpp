@@ -40,6 +40,17 @@ bool CsvReader::ReadNextEvent(MarketEvent &event) {
 
   StripTrailingCarriageReturn(lineBuffer_);
 
+  // Validate field count (expect exactly 7 fields: 6 commas)
+  int commaCount = 0;
+  for (char c : lineBuffer_) {
+    if (c == ',') ++commaCount;
+  }
+  if (commaCount != 6) {
+    throw std::runtime_error("CSV format error: expected 7 fields (6 commas), got " +
+                             std::to_string(commaCount + 1) + " fields in: " +
+                             lineBuffer_.substr(0, 50) + (lineBuffer_.size() > 50 ? "..." : ""));
+  }
+
   const char *ptr = lineBuffer_.data();
   const char *const end = ptr + lineBuffer_.size();
 
