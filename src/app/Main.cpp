@@ -54,9 +54,8 @@ int main(int argc, char* argv[]) {
         std::string tradeBuf;
         tradeBuf.reserve(kTradeLogBufferSize);
 
-        // Instantiate the templated engine. TStrategy is now 'Strategy'.
-        // This allows the compiler to inline strategy.Decide().
-        SimulationEngine<Strategy> engine(std::move(strategy), pnl, tradeBuf);
+        // Create simulation engine with strategy and PnL tracker
+        SimulationEngine engine(std::move(strategy), pnl, tradeBuf);
 
         // 5. Simulation Loop Variables
         MarketEvent ev{};
