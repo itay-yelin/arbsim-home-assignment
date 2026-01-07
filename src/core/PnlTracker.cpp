@@ -1,14 +1,15 @@
 #include "PnlTracker.h"
 
+#include <cassert>
+#include <climits>
 #include <cmath>
-#include <limits>
+#include <cstdlib>
 
 namespace ArbSim {
 
 PnlTracker::PnlTracker()
     : positionB_(0), cashInt_(0), lastMidBInt_(0), totalPnlInt_(0),
-      bestPnlInt_(std::numeric_limits<int64_t>::min()),
-      worstPnlInt_(std::numeric_limits<int64_t>::max()), hasMidB_(false),
+      bestPnlInt_(0), worstPnlInt_(0), hasMidB_(false), hasExtremes_(false),
       maxAbsExposure_(0), tradedLots_(0) {}
 
 // --- Helpers ---
@@ -33,18 +34,11 @@ double PnlTracker::GetLastMidB() const { return ToDouble(lastMidBInt_); }
 double PnlTracker::GetTotalPnl() const { return ToDouble(totalPnlInt_); }
 
 double PnlTracker::GetBestPnl() const {
-  // Handle initial state with min max undefined
-  if (bestPnlInt_ == std::numeric_limits<int64_t>::min()) {
-    return 0.0;
-  }
-  return ToDouble(bestPnlInt_);
+  return hasExtremes_ ? ToDouble(bestPnlInt_) : 0.0;
 }
 
 double PnlTracker::GetWorstPnl() const {
-  if (worstPnlInt_ == std::numeric_limits<int64_t>::max()) {
-    return 0.0;
-  }
-  return ToDouble(worstPnlInt_);
+  return hasExtremes_ ? ToDouble(worstPnlInt_) : 0.0;
 }
 
 int PnlTracker::GetMaxAbsExposure() const { return maxAbsExposure_; }
@@ -94,6 +88,14 @@ void PnlTracker::MarkToMarket() {
     return;
   }
 
+#ifdef _DEBUG
+  // Debug-only overflow check for position * price multiplication
+  if (positionB_ != 0 && lastMidBInt_ != 0) {
+    assert(std::abs(lastMidBInt_) < INT64_MAX / std::abs(positionB_) &&
+           "PnlTracker: potential integer overflow in position * price");
+  }
+#endif
+
   // PnL = Cash + (Position * CurrentMidPrice)
   // All done in integers -> No floating point drift
   totalPnlInt_ = cashInt_ + (static_cast<int64_t>(positionB_) * lastMidBInt_);
@@ -102,10 +104,15 @@ void PnlTracker::MarkToMarket() {
 }
 
 void PnlTracker::UpdateExtremes() {
+  if (!hasExtremes_) {
+    bestPnlInt_ = totalPnlInt_;
+    worstPnlInt_ = totalPnlInt_;
+    hasExtremes_ = true;
+    return;
+  }
   if (totalPnlInt_ > bestPnlInt_) {
     bestPnlInt_ = totalPnlInt_;
   }
-
   if (totalPnlInt_ < worstPnlInt_) {
     worstPnlInt_ = totalPnlInt_;
   }

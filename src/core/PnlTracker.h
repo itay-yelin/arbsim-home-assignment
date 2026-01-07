@@ -45,6 +45,7 @@ namespace ArbSim
         int64_t worstPnlInt_;
 
         bool hasMidB_;
+        bool hasExtremes_;
         int maxAbsExposure_;
         int tradedLots_;
 
