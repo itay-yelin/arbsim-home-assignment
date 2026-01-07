@@ -86,6 +86,27 @@ static void WriteTextFile(const std::string& path, const std::string& content)
     Require(f.good(), "Failed to write temp file: " + path);
 }
 
+// RAII helper for temporary files - auto-deletes on scope exit
+class TempFile {
+public:
+    explicit TempFile(const std::string& path) : path_(path) {}
+
+    // Non-copyable
+    TempFile(const TempFile&) = delete;
+    TempFile& operator=(const TempFile&) = delete;
+
+    ~TempFile() {
+        if (!path_.empty()) {
+            std::remove(path_.c_str());
+        }
+    }
+
+    const std::string& Path() const { return path_; }
+
+private:
+    std::string path_;
+};
+
 //================= SimulationEngine tests =================//
 
 void TestSimulationEngine_NoTradeUntilBothQuotes()
@@ -370,53 +391,39 @@ void TestCsvReaderEof()
 
 void TestStreamMergerTieBreak_AFirstOnEqualTimestamp()
 {
-    const std::string fileA = "Data/_tmp_A_equal_ts.csv";
-    const std::string fileB = "Data/_tmp_B_equal_ts.csv";
+    TempFile fileA("Data/_tmp_A_equal_ts.csv");
+    TempFile fileB("Data/_tmp_B_equal_ts.csv");
 
-    const std::string a =
+    WriteTextFile(fileA.Path(),
         "1000,FutureA,0,1,10,11,1\n"
-        "1001,FutureA,0,1,10,11,1\n";
+        "1001,FutureA,0,1,10,11,1\n");
 
-    const std::string b =
+    WriteTextFile(fileB.Path(),
         "1000,FutureB,0,1,20,21,1\n"
-        "1002,FutureB,0,1,20,21,1\n";
+        "1002,FutureB,0,1,20,21,1\n");
 
-    WriteTextFile(fileA, a);
-    WriteTextFile(fileB, b);
+    CsvReader readerA(fileA.Path());
+    CsvReader readerB(fileB.Path());
+    StreamMerger merger(readerA, readerB);
 
-    try
-    {
-        CsvReader readerA(fileA);
-        CsvReader readerB(fileB);
-        StreamMerger merger(readerA, readerB);
+    MarketEvent e1{}, e2{}, e3{}, e4{};
 
-        MarketEvent e1{}, e2{}, e3{}, e4{};
+    Require(merger.ReadNext(e1), "TieBreak: expected first event");
+    Require(merger.ReadNext(e2), "TieBreak: expected second event");
+    Require(merger.ReadNext(e3), "TieBreak: expected third event");
+    Require(merger.ReadNext(e4), "TieBreak: expected fourth event");
 
-        Require(merger.ReadNext(e1), "TieBreak: expected first event");
-        Require(merger.ReadNext(e2), "TieBreak: expected second event");
-        Require(merger.ReadNext(e3), "TieBreak: expected third event");
-        Require(merger.ReadNext(e4), "TieBreak: expected fourth event");
+    Require(e1.sendingTime == 1000, "TieBreak: e1 time mismatch");
+    Require(e2.sendingTime == 1000, "TieBreak: e2 time mismatch");
 
-        Require(e1.sendingTime == 1000, "TieBreak: e1 time mismatch");
-        Require(e2.sendingTime == 1000, "TieBreak: e2 time mismatch");
+    Require(e1.instrumentId == InstrumentId::FutureA, "TieBreak: expected FutureA first on equal timestamp");
+    Require(e2.instrumentId == InstrumentId::FutureB, "TieBreak: expected FutureB second on equal timestamp");
 
-        Require(e1.instrumentId == InstrumentId::FutureA, "TieBreak: expected FutureA first on equal timestamp");
-        Require(e2.instrumentId == InstrumentId::FutureB, "TieBreak: expected FutureB second on equal timestamp");
+    Require(e3.sendingTime == 1001 && e3.instrumentId == InstrumentId::FutureA, "TieBreak: expected A@1001 third");
+    Require(e4.sendingTime == 1002 && e4.instrumentId == InstrumentId::FutureB, "TieBreak: expected B@1002 fourth");
 
-        Require(e3.sendingTime == 1001 && e3.instrumentId == InstrumentId::FutureA, "TieBreak: expected A@1001 third");
-        Require(e4.sendingTime == 1002 && e4.instrumentId == InstrumentId::FutureB, "TieBreak: expected B@1002 fourth");
-
-        PrintOk("StreamMerger tie-break: A first on equal timestamp");
-    }
-    catch (...)
-    {
-        std::remove(fileA.c_str());
-        std::remove(fileB.c_str());
-        throw;
-    }
-
-    std::remove(fileA.c_str());
-    std::remove(fileB.c_str());
+    PrintOk("StreamMerger tie-break: A first on equal timestamp");
+    // Files auto-deleted when TempFile objects go out of scope
 }
 
 void TestStreamMergerOrdering()
@@ -665,78 +672,51 @@ void TestStrategy_EpsilonComparison_EdgeTooFarBelow()
 
 void TestConfig_GetValidatedPath_RejectsPathTraversal()
 {
-    const std::string configFile = "Data/_tmp_config_test.cfg";
-    WriteTextFile(configFile, "Data.FutureA=../../../etc/passwd\n");
+    TempFile configFile("Data/_tmp_config_test.cfg");
+    WriteTextFile(configFile.Path(), "Data.FutureA=../../../etc/passwd\n");
 
+    Config cfg(configFile.Path());
+    bool threw = false;
     try
     {
-        Config cfg(configFile);
-        bool threw = false;
-        try
-        {
-            cfg.GetValidatedPath("Data.FutureA");
-        }
-        catch (const std::runtime_error&)
-        {
-            threw = true;
-        }
-        Require(threw, "Config: expected GetValidatedPath to throw on path traversal");
-        PrintOk("Config rejects path traversal attempts");
+        cfg.GetValidatedPath("Data.FutureA");
     }
-    catch (...)
+    catch (const std::runtime_error&)
     {
-        std::remove(configFile.c_str());
-        throw;
+        threw = true;
     }
-    std::remove(configFile.c_str());
+    Require(threw, "Config: expected GetValidatedPath to throw on path traversal");
+    PrintOk("Config rejects path traversal attempts");
 }
 
 void TestConfig_GetValidatedPath_AcceptsValidPath()
 {
-    const std::string configFile = "Data/_tmp_config_valid.cfg";
-    WriteTextFile(configFile, "Data.FutureA=Data/futureA.csv\n");
+    TempFile configFile("Data/_tmp_config_valid.cfg");
+    WriteTextFile(configFile.Path(), "Data.FutureA=Data/futureA.csv\n");
 
-    try
-    {
-        Config cfg(configFile);
-        std::string path = cfg.GetValidatedPath("Data.FutureA");
-        Require(path == "Data/futureA.csv", "Config: expected valid path to be returned");
-        PrintOk("Config accepts valid relative path");
-    }
-    catch (...)
-    {
-        std::remove(configFile.c_str());
-        throw;
-    }
-    std::remove(configFile.c_str());
+    Config cfg(configFile.Path());
+    std::string path = cfg.GetValidatedPath("Data.FutureA");
+    Require(path == "Data/futureA.csv", "Config: expected valid path to be returned");
+    PrintOk("Config accepts valid relative path");
 }
 
 void TestConfig_GetValidatedPath_RejectsDoubleDot()
 {
-    const std::string configFile = "Data/_tmp_config_dotdot.cfg";
-    WriteTextFile(configFile, "Data.FutureA=data/../data/../secret.csv\n");
+    TempFile configFile("Data/_tmp_config_dotdot.cfg");
+    WriteTextFile(configFile.Path(), "Data.FutureA=data/../data/../secret.csv\n");
 
+    Config cfg(configFile.Path());
+    bool threw = false;
     try
     {
-        Config cfg(configFile);
-        bool threw = false;
-        try
-        {
-            cfg.GetValidatedPath("Data.FutureA");
-        }
-        catch (const std::runtime_error&)
-        {
-            threw = true;
-        }
-        Require(threw, "Config: expected GetValidatedPath to throw on embedded ..");
-        PrintOk("Config rejects paths with embedded ..");
+        cfg.GetValidatedPath("Data.FutureA");
     }
-    catch (...)
+    catch (const std::runtime_error&)
     {
-        std::remove(configFile.c_str());
-        throw;
+        threw = true;
     }
-    std::remove(configFile.c_str());
+    Require(threw, "Config: expected GetValidatedPath to throw on embedded ..");
+    PrintOk("Config rejects paths with embedded ..");
 }
 
 //================= Test Runner =================//
